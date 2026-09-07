@@ -12,8 +12,8 @@
   html, body { margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0B1220;
-    color: #EAF0FF;
+    background: #FFE3EC;
+    color: #3A1626;
     min-height: 100vh;
   }
   .app { padding: 20px; display: flex; flex-direction: column; gap: 16px; max-width: 1100px; margin: 0 auto; }
@@ -21,31 +21,31 @@
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand-mark { font-size: 28px; }
   .brand-title { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
-  .brand-sub { font-size: 12.5px; color: #7C89A6; margin-top: 2px; }
-  .roles { display: flex; gap: 6px; background: #131C31; padding: 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); }
-  .role-btn { background: transparent; border: none; color: #7C89A6; padding: 7px 14px; border-radius: 7px; font-size: 13.5px; cursor: pointer; font-weight: 500; }
-  .role-btn.active { background: #1F2C4A; color: #EAF0FF; }
-  .locked-tag { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #7C89A6; background: #131C31; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); }
-  .locked-tag b { color: #EAF0FF; }
+  .brand-sub { font-size: 12.5px; color: #9C6478; margin-top: 2px; }
+  .roles { display: flex; gap: 6px; background: #FFEAF1; padding: 4px; border-radius: 10px; border: 1px solid rgba(154,60,95,0.12); }
+  .role-btn { background: transparent; border: none; color: #9C6478; padding: 7px 14px; border-radius: 7px; font-size: 13.5px; cursor: pointer; font-weight: 500; }
+  .role-btn.active { background: #FFB8CE; color: #3A1626; }
+  .locked-tag { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #9C6478; background: #FFEAF1; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(154,60,95,0.12); }
+  .locked-tag b { color: #3A1626; }
   .locked-tag button { background: none; border: none; color: #FF8A93; text-decoration: underline; cursor: pointer; font-size: 12px; padding: 0; }
-  .panel { background: #111A2E; border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px 22px; }
+  .panel { background: #FFFFFF; border: 1px solid rgba(154,60,95,0.12); border-radius: 16px; padding: 20px 22px; }
   .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
   .panel-head h2 { font-size: 16px; font-weight: 650; margin: 0; }
   .pill { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #FFC93C; background: rgba(255,201,60,0.1); padding: 5px 10px; border-radius: 999px; }
-  .sync-banner { background: #0D1526; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .sync-banner { background: #FFF0F5; border: 1px solid rgba(154,60,95,0.16); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
   .sync-banner.on { border-color: rgba(53,208,127,0.35); }
   .sync-banner.off { border-color: rgba(255,201,60,0.35); }
   .sync-status b { display: block; margin-bottom: 4px; font-size: 13.5px; }
   .sync-status.on b { color: #35D07F; }
   .sync-status.off b { color: #FFC93C; }
-  .sync-status p { margin: 0; font-size: 12.5px; color: #7C89A6; line-height: 1.6; }
-  .sync-status ol { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: #7C89A6; line-height: 1.9; }
+  .sync-status p { margin: 0; font-size: 12.5px; color: #9C6478; line-height: 1.6; }
+  .sync-status ol { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: #9C6478; line-height: 1.9; }
   .sync-status a { color: #7fb8ff; }
   .form-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; align-items: flex-start; }
   .drop-zone {
     width: 160px; height: 160px; border: 2px dashed rgba(255,255,255,0.16); border-radius: 12px;
     display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px;
-    background: #0D1526; cursor: pointer; text-align: center; padding: 10px; color: #7C89A6; font-size: 12px;
+    background: #FFF0F5; cursor: pointer; text-align: center; padding: 10px; color: #9C6478; font-size: 12px;
     flex-shrink: 0; position: relative; overflow: hidden;
   }
   .drop-zone.has-image { border-style: solid; border-color: rgba(53,208,127,0.4); }
@@ -57,88 +57,88 @@
     color: #fff; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-size: 12px; z-index: 2;
   }
   .form-fields { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 220px; }
-  .input { background: #0D1526; border: 1px solid rgba(255,255,255,0.09); color: #EAF0FF; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; width: 100%; }
+  .input { background: #FFF0F5; border: 1px solid rgba(154,60,95,0.18); color: #3A1626; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; width: 100%; }
   .input:focus { outline: none; border-color: #FF4757; }
   .btn { display: flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 9px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: none; }
   .btn.primary { background: #FF4757; color: #fff; align-self: flex-start; }
-  .btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.14); color: #EAF0FF; }
-  .select { background: #0D1526; border: 1px solid rgba(255,255,255,0.09); color: #EAF0FF; padding: 8px 10px; border-radius: 9px; font-size: 13px; }
-  .sub-head { font-size: 13px; color: #7C89A6; margin: 18px 0 8px; font-weight: 600; }
+  .btn.ghost { background: transparent; border: 1px solid rgba(154,60,95,0.26); color: #3A1626; }
+  .select { background: #FFF0F5; border: 1px solid rgba(154,60,95,0.18); color: #3A1626; padding: 8px 10px; border-radius: 9px; font-size: 13px; }
+  .sub-head { font-size: 13px; color: #9C6478; margin: 18px 0 8px; font-weight: 600; }
   .log-list, .locked-list { display: flex; flex-direction: column; gap: 6px; }
-  .log-row, .locked-row { display: flex; align-items: center; gap: 12px; font-size: 13px; background: #0D1526; padding: 9px 12px; border-radius: 8px; }
-  .locked-row { color: #7C89A6; }
-  .locked-by b { color: #EAF0FF; }
-  .ticket { font-family: 'SFMono-Regular', Consolas, monospace; color: #7C89A6; font-size: 12.5px; min-width: 78px; }
+  .log-row, .locked-row { display: flex; align-items: center; gap: 12px; font-size: 13px; background: #FFF0F5; padding: 9px 12px; border-radius: 8px; }
+  .locked-row { color: #9C6478; }
+  .locked-by b { color: #3A1626; }
+  .ticket { font-family: 'SFMono-Regular', Consolas, monospace; color: #9C6478; font-size: 12.5px; min-width: 78px; }
   .log-name { flex: 1; }
   .status { display: flex; align-items: center; gap: 5px; font-size: 12px; }
   .status.pending { color: #FFC93C; }
   .status.locked { color: #35D07F; }
-  .log-time { color: #556; font-size: 12px; min-width: 62px; text-align: right; }
+  .log-time { color: #B98A9C; font-size: 12px; min-width: 62px; text-align: right; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-  .card { background: #0D1526; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card { background: #FFF0F5; border: 1px solid rgba(154,60,95,0.16); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .card.pulse { animation: pulse 1.6s ease-in-out 2; }
   @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,71,87,0); } 50% { box-shadow: 0 0 0 4px rgba(255,71,87,0.18); } }
   .card-top { display: flex; justify-content: space-between; align-items: center; }
-  .time { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: #556; }
+  .time { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: #B98A9C; }
   .card-body { display: flex; gap: 12px; align-items: center; }
-  .card-qr { width: 92px; height: 92px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #0A1120; }
+  .card-qr { width: 92px; height: 92px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #FFD6E4; }
   .card-name { font-size: 14.5px; font-weight: 600; }
-  .card-note { font-size: 12px; color: #7C89A6; margin-top: 2px; }
+  .card-note { font-size: 12px; color: #9C6478; margin-top: 2px; }
   .heart-btn { display: flex; align-items: center; justify-content: center; gap: 7px; background: #FF4757; color: #fff; border: none; padding: 10px; border-radius: 9px; font-size: 13.5px; font-weight: 650; cursor: pointer; width: 100%; }
   .heart-btn:hover { background: #ff5c6c; }
   .table { display: flex; flex-direction: column; gap: 2px; overflow-x: auto; }
   .table-head, .table-row { display: grid; grid-template-columns: 40px 60px 100px 1.1fr 1.2fr 100px 110px 100px 90px 90px 32px; gap: 10px; padding: 9px 10px; font-size: 12.5px; align-items: center; min-width: 840px; }
   .row-delete-btn { background: rgba(255,71,87,0.12); border: 1px solid rgba(255,71,87,0.3); color: #FF8A93; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1; }
   .row-delete-btn:hover { background: rgba(255,71,87,0.25); }
-  .table-head { color: #556; font-size: 11.5px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-  .table-row { background: #0D1526; border-radius: 8px; }
-  .table-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; background: #0A1120; }
-  .muted { color: #7C89A6; }
-  .empty { color: #556; font-size: 13.5px; padding: 30px 0; text-align: center; }
+  .table-head { color: #B98A9C; font-size: 11.5px; border-bottom: 1px solid rgba(154,60,95,0.12); }
+  .table-row { background: #FFF0F5; border-radius: 8px; }
+  .table-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; background: #FFD6E4; }
+  .muted { color: #9C6478; }
+  .empty { color: #B98A9C; font-size: 13.5px; padding: 30px 0; text-align: center; }
   .empty.small { padding: 10px 0; text-align: left; }
-  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #1F2C4A; border: 1px solid rgba(255,255,255,0.1); padding: 10px 16px; border-radius: 9px; font-size: 13px; z-index: 50; display: none; max-width: 90vw; text-align: center; }
+  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #FFFFFF; border: 1px solid rgba(154,60,95,0.2); padding: 10px 16px; border-radius: 9px; font-size: 13px; z-index: 50; display: none; max-width: 90vw; text-align: center; box-shadow: 0 6px 20px rgba(154,60,95,0.18); }
   .toast.show { display: block; }
   .toast.ok { border-color: rgba(53,208,127,0.4); color: #35D07F; }
   .toast.warn { border-color: rgba(255,71,87,0.4); color: #FF8A93; }
-  .foot { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #556; margin-top: 4px; }
+  .foot { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #B98A9C; margin-top: 4px; }
   .gate-wrap { display: flex; justify-content: center; padding: 40px 10px; }
-  .gate-card { background: #111A2E; border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 28px; max-width: 380px; width: 100%; text-align: center; }
+  .gate-card { background: #FFFFFF; border: 1px solid rgba(154,60,95,0.12); border-radius: 16px; padding: 28px; max-width: 380px; width: 100%; text-align: center; }
   .gate-card h2 { margin: 0 0 4px; font-size: 17px; }
-  .gate-card p { color: #7C89A6; font-size: 13px; margin: 0 0 18px; }
+  .gate-card p { color: #9C6478; font-size: 13px; margin: 0 0 18px; }
   .gate-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
-  .gate-role-btn { background: #0D1526; border: 1px solid rgba(255,255,255,0.09); color: #EAF0FF; padding: 12px; border-radius: 10px; font-size: 14px; cursor: pointer; text-align: left; padding-left: 16px; }
+  .gate-role-btn { background: #FFF0F5; border: 1px solid rgba(154,60,95,0.18); color: #3A1626; padding: 12px; border-radius: 10px; font-size: 14px; cursor: pointer; text-align: left; padding-left: 16px; }
   .gate-role-btn:hover { border-color: #FF4757; }
   .gate-code-row { display: flex; gap: 8px; margin-top: 10px; }
-  .gate-back { margin-top: 12px; background: none; border: none; color: #7C89A6; text-decoration: underline; cursor: pointer; font-size: 12px; }
+  .gate-back { margin-top: 12px; background: none; border: none; color: #9C6478; text-decoration: underline; cursor: pointer; font-size: 12px; }
   .gate-error { color: #FF8A93; font-size: 12.5px; margin-top: 8px; }
   .chat-btn { background: rgba(127,184,255,0.12); border: 1px solid rgba(127,184,255,0.35); color: #7fb8ff; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; cursor: pointer; font-weight: 600; position: relative; }
   .chat-btn.has-unread { border-color: rgba(255,71,87,0.5); animation: pulse 1.6s ease-in-out infinite; }
   .chat-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; background: #FF4757; color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; margin-left: 6px; }
   .chat-btn:hover { background: rgba(127,184,255,0.22); }
   .chat-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
-  .chat-modal { background: #111A2E; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 100%; max-width: 420px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
-  .chat-header { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .chat-modal { background: #FFFFFF; border: 1px solid rgba(154,60,95,0.2); border-radius: 16px; width: 100%; max-width: 420px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+  .chat-header { padding: 14px 16px; border-bottom: 1px solid rgba(154,60,95,0.12); display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .chat-header .title { font-size: 14px; font-weight: 650; }
-  .chat-header .sub { font-size: 12px; color: #7C89A6; margin-top: 3px; }
-  .chat-close { background: none; border: none; color: #7C89A6; cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .chat-header .sub { font-size: 12px; color: #9C6478; margin-top: 3px; }
+  .chat-close { background: none; border: none; color: #9C6478; cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0; }
   .chat-messages { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 160px; }
   .chat-msg { max-width: 78%; padding: 8px 11px; border-radius: 10px; font-size: 13px; line-height: 1.4; }
   .chat-msg.mine { align-self: flex-end; background: #FF4757; color: #fff; border-bottom-right-radius: 3px; }
-  .chat-msg.theirs { align-self: flex-start; background: #0D1526; color: #EAF0FF; border-bottom-left-radius: 3px; }
+  .chat-msg.theirs { align-self: flex-start; background: #FFF0F5; color: #3A1626; border-bottom-left-radius: 3px; }
   .chat-msg .who { font-size: 10.5px; opacity: 0.75; margin-bottom: 2px; }
-  .chat-input-row { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .chat-input-row { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(154,60,95,0.12); }
   .chat-input-row input { flex: 1; }
   .card-qr { cursor: zoom-in; }
   .lightbox-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 110; padding: 20px; }
   .lightbox-img { max-width: 92vw; max-height: 82vh; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-  .lightbox-close { position: absolute; top: 18px; right: 22px; background: rgba(255,255,255,0.12); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  .lightbox-close { position: absolute; top: 18px; right: 22px; background: rgba(154,60,95,0.22); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 18px; cursor: pointer; }
   .zalo-btn { display: flex; align-items: center; justify-content: center; gap: 6px; background: #0068FF; color: #fff; border: none; padding: 9px; border-radius: 8px; font-size: 12.5px; font-weight: 650; cursor: pointer; text-decoration: none; margin-top: 6px; }
   .zalo-btn:hover { background: #1a7bff; }
-  .mine-compact { display: flex; align-items: center; gap: 12px; background: #0D1526; border: 1px solid rgba(53,208,127,0.3); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
-  .mine-compact .card-qr-sm { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #0A1120; cursor: zoom-in; }
+  .mine-compact { display: flex; align-items: center; gap: 12px; background: #FFF0F5; border: 1px solid rgba(53,208,127,0.3); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+  .mine-compact .card-qr-sm { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #FFD6E4; cursor: zoom-in; }
   .mine-compact .mc-info { flex: 1; min-width: 0; }
   .mine-compact .mc-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mine-compact .mc-sub { font-size: 11.5px; color: #7C89A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mine-compact .mc-sub { font-size: 11.5px; color: #9C6478; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mine-compact .mc-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .mine-compact .zalo-btn { margin-top: 0; padding: 6px 8px; font-size: 11.5px; }
   .mine-compact .chat-btn { padding: 6px 9px; font-size: 11.5px; white-space: nowrap; }
@@ -933,7 +933,7 @@ function renderShell() {
       main.innerHTML = `
         <section class="panel">
           <div class="panel-head">
-            <h2>Data đang chờ nhận</h2>
+            <h2>Kho data</h2>
             <div style="display:flex; align-items:center; gap:10px;">
               <button class="btn ${state.notifyEnabled ? 'primary' : 'ghost'} small" id="notifyToggleBtn">
                 ${state.notifyEnabled ? '🔔 Đã bật thông báo' : '🔕 Bật thông báo data mới'}
@@ -941,7 +941,6 @@ function renderShell() {
               <span class="pill">👤 ${state.saleName} · <button id="changeNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
             </div>
           </div>
-          <div id="saleBody"></div>
           <h3 class="sub-head">Tra lại data đã chốt</h3>
           <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
             <input class="input" id="saleSearchInput" placeholder="Tìm tên khách hoặc SĐT…" style="max-width:200px;" />
@@ -951,6 +950,8 @@ function renderShell() {
             <button class="btn ghost small" id="saleFilterClearBtn">Xoá lọc</button>
           </div>
           <div id="saleSearchResults"></div>
+          <h3 class="sub-head" style="margin-top:20px;">Data đang chờ nhận</h3>
+          <div id="saleBody"></div>
         </section>
       `;
     }
@@ -1048,8 +1049,8 @@ function renderStats(filteredItems) {
   const sentRows = Object.entries(bySent).sort((a, b) => b[1] - a[1]);
   const claimedRows = Object.entries(byClaimed).sort((a, b) => b[1] - a[1]);
   const col = (title, rows) => `
-    <div style="flex:1;min-width:220px;background:#0D1526;border-radius:10px;padding:12px 14px;">
-      <div style="font-size:12.5px;color:#7C89A6;margin-bottom:8px;font-weight:600;">${title}</div>
+    <div style="flex:1;min-width:220px;background:#FFF0F5;border-radius:10px;padding:12px 14px;">
+      <div style="font-size:12.5px;color:#9C6478;margin-bottom:8px;font-weight:600;">${title}</div>
       ${rows.length === 0 ? '<div class="empty small">Chưa có dữ liệu</div>' : rows.map(([name, count], i) => `
         <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);">
           <span>${i + 1}. ${name}</span><b>${count}</b>
@@ -1152,7 +1153,7 @@ function renderDynamic() {
         <div class="mine-compact">
           ${it.qrImage
             ? `<img class="card-qr-sm" src="${it.qrImage}" alt="QR khách" data-zoom-item="${it.id}" />`
-            : `<div class="card-qr-sm" style="display:flex;align-items:center;justify-content:center;color:#556;font-size:9px;text-align:center;">Chưa có QR</div>`
+            : `<div class="card-qr-sm" style="display:flex;align-items:center;justify-content:center;color:#B98A9C;font-size:9px;text-align:center;">Chưa có QR</div>`
           }
           <div class="mc-info">
             <div class="mc-name">${it.name} <span class="ticket">#${String(it.id).padStart(6,'0')}</span></div>
@@ -1182,7 +1183,7 @@ function renderDynamic() {
                 <div class="card-body">
                   ${it.qrImage
                     ? `<img class="card-qr" src="${it.qrImage}" alt="QR khách" data-zoom-item="${it.id}" />`
-                    : `<div class="card-qr" style="display:flex;align-items:center;justify-content:center;color:#556;font-size:11px;text-align:center;">Chưa có ảnh QR</div>`
+                    : `<div class="card-qr" style="display:flex;align-items:center;justify-content:center;color:#B98A9C;font-size:11px;text-align:center;">Chưa có ảnh QR</div>`
                   }
                   <div class="card-info">
                     <div class="card-name">${it.name}</div>
