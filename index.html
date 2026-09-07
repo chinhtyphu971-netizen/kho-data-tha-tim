@@ -668,6 +668,22 @@ if (chatsRef) {
   });
 }
 
+let allPins = {};
+if (pinsRef) {
+  pinsRef.on('value', (snap) => {
+    allPins = snap.val() || {};
+    if (state.lockedRole === 'admin' && state.role === 'admin') renderDynamic();
+  });
+}
+
+function resetPin(key) {
+  if (!pinsRef) return;
+  if (!confirm(`Reset PIN cho "${key}"? Người này sẽ cần đặt PIN mới ở lần vào tiếp theo.`)) return;
+  pinsRef.child(key).remove()
+    .then(() => showToast(`Đã reset PIN cho "${key}"`, 'ok'))
+    .catch(() => showToast('Reset PIN thất bại, kiểm tra mạng', 'warn'));
+}
+
 function openLightbox(dataUrl) {
   if (!dataUrl) return;
   const root = document.getElementById('lightboxRoot');
@@ -979,6 +995,9 @@ function renderShell() {
         </div>
         <h3 class="sub-head">Tổng hợp theo người (theo bộ lọc hiện tại)</h3>
         <div id="statsSection" style="margin-bottom:20px;"></div>
+        <h3 class="sub-head">Quản lý mã PIN (Marketing &amp; Sale)</h3>
+        <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Ai quên PIN, bấm "Reset" để họ đặt PIN mới ở lần đăng nhập tiếp theo.</p>
+        <div id="pinsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Chi tiết</h3>
         <div class="table" id="adminTable"></div>
       </section>
@@ -1062,6 +1081,30 @@ function renderStats(filteredItems) {
     <div style="display:flex;gap:16px;flex-wrap:wrap;">
       ${col('📣 Theo Marketing (đã gửi)', sentRows)}
       ${col('❤️ Theo Sale (đã nhận)', claimedRows)}
+    </div>
+  `;
+}
+
+function renderPinsSection() {
+  const el = document.getElementById('pinsSection');
+  if (!el) return;
+  if (!pinsRef) {
+    el.innerHTML = '<div class="empty small">Cần bật kho dùng chung (Firebase) để quản lý PIN.</div>';
+    return;
+  }
+  const keys = Object.keys(allPins).sort();
+  if (keys.length === 0) {
+    el.innerHTML = '<div class="empty small">Chưa có ai đăng ký tên/PIN.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      ${keys.map(k => `
+        <div class="log-row">
+          <span class="log-name">${k}</span>
+          <button class="btn ghost small" data-reset-pin="${k}">↺ Reset PIN</button>
+        </div>
+      `).join('')}
     </div>
   `;
 }
@@ -1231,6 +1274,7 @@ function renderDynamic() {
     }
   } else if (state.role === 'admin') {
     renderSyncBanner();
+    renderPinsSection();
     updateFilterOptions(items);
     const filtered = getFilteredItems(items);
     renderStats(filtered);
@@ -1388,6 +1432,8 @@ document.getElementById('app').addEventListener('click', async (e) => {
     if (confirm(`Xoá DATA #${String(id).padStart(6,'0')}?`)) deleteItem(id);
     return;
   }
+  const resetPinBtn = e.target.closest('[data-reset-pin]');
+  if (resetPinBtn) { resetPin(resetPinBtn.dataset.resetPin); return; }
   const chatBtn = e.target.closest('[data-chat]');
   if (chatBtn) {
     const item = findItemById(Number(chatBtn.dataset.chat));
