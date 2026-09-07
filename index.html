@@ -1710,10 +1710,21 @@ if (!dbRef) {
     grad.addColorStop(1, '#B0203A');
     ctx.fillStyle = grad;
     ctx.fill();
-    ctx.font = `${Math.round(size * 0.55)}px -apple-system, "Segoe UI Emoji", sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('❤️', size / 2, size / 2 + size * 0.06);
+
+    const cx = size / 2;
+    const cy = size * 0.53;
+    const w = size * 0.62;
+    const topY = cy - w * 0.32;
+    ctx.beginPath();
+    ctx.moveTo(cx, topY + w * 0.3);
+    ctx.bezierCurveTo(cx, topY, cx - w / 2, topY, cx - w / 2, topY + w * 0.3);
+    ctx.bezierCurveTo(cx - w / 2, topY + (w + w * 0.3) / 2, cx, topY + (w + w * 0.3) / 2, cx, topY + w);
+    ctx.bezierCurveTo(cx, topY + (w + w * 0.3) / 2, cx + w / 2, topY + (w + w * 0.3) / 2, cx + w / 2, topY + w * 0.3);
+    ctx.bezierCurveTo(cx + w / 2, topY, cx, topY, cx, topY + w * 0.3);
+    ctx.closePath();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+
     const dataUrl = canvas.toDataURL('image/png');
     const appleIcon = document.createElement('link');
     appleIcon.rel = 'apple-touch-icon';
