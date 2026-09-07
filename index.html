@@ -996,7 +996,8 @@ function renderShell() {
         <h3 class="sub-head">Tổng hợp theo người (theo bộ lọc hiện tại)</h3>
         <div id="statsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Quản lý mã PIN (Marketing &amp; Sale)</h3>
-        <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Ai quên PIN, bấm "Reset" để họ đặt PIN mới ở lần đăng nhập tiếp theo.</p>
+        <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Có thể xem sẵn PIN để đọc cho họ, hoặc bấm "Reset" để họ tự đặt PIN mới.</p>
+        <input class="input" id="pinsSearchInput" placeholder="Tìm tên…" style="max-width:200px;margin-bottom:10px;" />
         <div id="pinsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Chi tiết</h3>
         <div class="table" id="adminTable"></div>
@@ -1092,17 +1093,19 @@ function renderPinsSection() {
     el.innerHTML = '<div class="empty small">Cần bật kho dùng chung (Firebase) để quản lý PIN.</div>';
     return;
   }
-  const keys = Object.keys(allPins).sort();
+  const q = (document.getElementById('pinsSearchInput')?.value || '').trim().toLowerCase();
+  const keys = Object.keys(allPins).filter(k => !q || k.includes(q)).sort();
   if (keys.length === 0) {
-    el.innerHTML = '<div class="empty small">Chưa có ai đăng ký tên/PIN.</div>';
+    el.innerHTML = '<div class="empty small">Không có tên nào khớp.</div>';
     return;
   }
   el.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:6px;">
+    <div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;">
       ${keys.map(k => `
         <div class="log-row">
           <span class="log-name">${k}</span>
-          <button class="btn ghost small" data-reset-pin="${k}">↺ Reset PIN</button>
+          <span class="ticket" style="min-width:auto;">PIN: <b style="color:#EAF0FF;">${allPins[k]}</b></span>
+          <button class="btn ghost small" data-reset-pin="${k}">↺ Reset</button>
         </div>
       `).join('')}
     </div>
@@ -1487,6 +1490,7 @@ document.getElementById('app').addEventListener('input', (e) => {
   if (e.target.id === 'saleSearchInput') renderDynamic();
   if (e.target.id === 'filterSearch') renderDynamic();
   if (e.target.id === 'mktFilterSearch') renderDynamic();
+  if (e.target.id === 'pinsSearchInput') renderDynamic();
 });
 
 document.getElementById('app').addEventListener('change', (e) => {
