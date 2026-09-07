@@ -889,6 +889,18 @@ function renderShell() {
           </div>
         </div>
         <h3 class="sub-head">Đã gửi gần đây</h3>
+        <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <input class="input" id="mktFilterSearch" placeholder="Tìm tên khách / nguồn…" style="max-width:180px;" />
+          <select class="select" id="mktFilterStatus">
+            <option value="">Tất cả trạng thái</option>
+            <option value="pending">Đang chờ</option>
+            <option value="claimed">Đã khóa</option>
+          </select>
+          <input class="input" type="date" id="mktFilterFrom" style="max-width:145px;" />
+          <span class="muted" style="font-size:12px;">đến</span>
+          <input class="input" type="date" id="mktFilterTo" style="max-width:145px;" />
+          <button class="btn ghost small" id="mktFilterClearBtn">Xoá lọc</button>
+        </div>
         <div class="log-list" id="logList"></div>
       </section>
     `;
@@ -922,7 +934,13 @@ function renderShell() {
           </div>
           <div id="saleBody"></div>
           <h3 class="sub-head">Tra lại data đã chốt</h3>
-          <input class="input" id="saleSearchInput" placeholder="Tìm theo tên khách hoặc SĐT đã nhận trước đó…" style="margin-bottom:12px;" />
+          <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            <input class="input" id="saleSearchInput" placeholder="Tìm tên khách hoặc SĐT…" style="max-width:200px;" />
+            <input class="input" type="date" id="saleFilterFrom" style="max-width:145px;" />
+            <span class="muted" style="font-size:12px;">đến</span>
+            <input class="input" type="date" id="saleFilterTo" style="max-width:145px;" />
+            <button class="btn ghost small" id="saleFilterClearBtn">Xoá lọc</button>
+          </div>
           <div id="saleSearchResults"></div>
         </section>
       `;
@@ -1100,10 +1118,24 @@ function renderDynamic() {
     const minePending = mine.filter(it => !it.claimedBy);
     const pill = document.getElementById('pendingPill');
     if (pill) pill.textContent = `📡 ${minePending.length} đang chờ nhận`;
+
+    const mSearch = (document.getElementById('mktFilterSearch')?.value || '').trim().toLowerCase();
+    const mStatus = document.getElementById('mktFilterStatus')?.value || '';
+    const mFrom = document.getElementById('mktFilterFrom')?.value || '';
+    const mTo = document.getElementById('mktFilterTo')?.value || '';
+    const mineFiltered = mine.filter(it => {
+      if (mSearch && !((it.name || '').toLowerCase().includes(mSearch) || (it.note || '').toLowerCase().includes(mSearch))) return false;
+      if (mStatus === 'pending' && it.claimedBy) return false;
+      if (mStatus === 'claimed' && !it.claimedBy) return false;
+      if (mFrom && it.createdAt < new Date(mFrom + 'T00:00:00').getTime()) return false;
+      if (mTo && it.createdAt > new Date(mTo + 'T23:59:59').getTime()) return false;
+      return true;
+    });
+
     const logList = document.getElementById('logList');
     if (logList) {
-      logList.innerHTML = mine.length === 0 ? '<div class="empty small">Chưa có data nào.</div>' :
-        mine.slice(0,12).map(it => `
+      logList.innerHTML = mineFiltered.length === 0 ? '<div class="empty small">Không có data khớp bộ lọc.</div>' :
+        mineFiltered.slice(0,50).map(it => `
           <div class="log-row">
             <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
             <span class="log-name">${it.name}${it.qrImage ? ' 📷' : ''}</span>
@@ -1188,13 +1220,18 @@ function renderDynamic() {
     const searchResults = document.getElementById('saleSearchResults');
     if (searchResults) {
       const q = (searchInput && searchInput.value.trim().toLowerCase()) || '';
-      if (!q) {
-        searchResults.innerHTML = '<div class="empty small">Gõ tên khách hoặc SĐT để tìm trong toàn bộ data bạn đã từng nhận.</div>';
+      const sFrom = document.getElementById('saleFilterFrom')?.value || '';
+      const sTo = document.getElementById('saleFilterTo')?.value || '';
+      if (!q && !sFrom && !sTo) {
+        searchResults.innerHTML = '<div class="empty small">Gõ tên khách/SĐT hoặc chọn khoảng ngày để tìm trong toàn bộ data bạn đã từng nhận.</div>';
       } else {
-        const mine = items.filter(it =>
-          it.claimedBy === state.saleName &&
-          ((it.name || '').toLowerCase().includes(q) || (it.note || '').toLowerCase().includes(q))
-        ).sort((a, b) => b.claimedAt - a.claimedAt);
+        const mine = items.filter(it => {
+          if (it.claimedBy !== state.saleName) return false;
+          if (q && !((it.name || '').toLowerCase().includes(q) || (it.note || '').toLowerCase().includes(q))) return false;
+          if (sFrom && it.claimedAt < new Date(sFrom + 'T00:00:00').getTime()) return false;
+          if (sTo && it.claimedAt > new Date(sTo + 'T23:59:59').getTime()) return false;
+          return true;
+        }).sort((a, b) => b.claimedAt - a.claimedAt);
         searchResults.innerHTML = mine.length === 0
           ? '<div class="empty small">Không tìm thấy data nào khớp trong lịch sử của bạn.</div>'
           : `<div class="locked-list" style="gap:10px;">${mine.map(it => mineCard(it, '✔ Data bạn đã nhận trước đây')).join('')}</div>`;
@@ -1381,6 +1418,17 @@ document.getElementById('app').addEventListener('click', async (e) => {
     return;
   }
   if (e.target.closest('#filterClearBtn')) { clearAdminFilters(); return; }
+  if (e.target.closest('#mktFilterClearBtn')) {
+    ['mktFilterSearch', 'mktFilterFrom', 'mktFilterTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const s = document.getElementById('mktFilterStatus'); if (s) s.value = '';
+    renderDynamic();
+    return;
+  }
+  if (e.target.closest('#saleFilterClearBtn')) {
+    ['saleSearchInput', 'saleFilterFrom', 'saleFilterTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    renderDynamic();
+    return;
+  }
 });
 
 document.getElementById('app').addEventListener('keydown', (e) => {
@@ -1394,12 +1442,16 @@ document.getElementById('app').addEventListener('keydown', (e) => {
 document.getElementById('app').addEventListener('input', (e) => {
   if (e.target.id === 'saleSearchInput') renderDynamic();
   if (e.target.id === 'filterSearch') renderDynamic();
+  if (e.target.id === 'mktFilterSearch') renderDynamic();
 });
 
 document.getElementById('app').addEventListener('change', (e) => {
-  if (['filterSentBy', 'filterClaimedBy', 'filterStatus', 'filterFrom', 'filterTo'].includes(e.target.id)) {
-    renderDynamic();
-  }
+  const ids = [
+    'filterSentBy', 'filterClaimedBy', 'filterStatus', 'filterFrom', 'filterTo',
+    'mktFilterStatus', 'mktFilterFrom', 'mktFilterTo',
+    'saleFilterFrom', 'saleFilterTo',
+  ];
+  if (ids.includes(e.target.id)) renderDynamic();
 });
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
