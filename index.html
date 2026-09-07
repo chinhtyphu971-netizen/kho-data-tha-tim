@@ -847,6 +847,7 @@ function renderChatModal() {
   if (!state.chatItem) { root.innerHTML = ''; return; }
   const it = state.chatItem;
   const me = myCurrentName();
+  const otherName = state.role === 'sale' ? (it.sentBy || '') : (it.claimedBy || '');
   const otherLabel = state.role === 'sale'
     ? (it.sentBy ? `Marketing: ${it.sentBy}` : 'Marketing (không rõ tên)')
     : (it.claimedBy ? `Sale: ${it.claimedBy}` : 'Sale');
@@ -854,9 +855,12 @@ function renderChatModal() {
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-modal">
         <div class="chat-header">
-          <div>
-            <div class="title">DATA #${String(it.id).padStart(6,'0')} — ${it.name}</div>
-            <div class="sub">Trao đổi với ${otherLabel}</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${otherName ? avatarHtml(otherName, 32) : ''}
+            <div>
+              <div class="title">DATA #${String(it.id).padStart(6,'0')} — ${it.name}</div>
+              <div class="sub">Trao đổi với ${otherLabel}</div>
+            </div>
           </div>
           <button class="chat-close" id="chatCloseBtn">✕</button>
         </div>
@@ -864,9 +868,12 @@ function renderChatModal() {
           ${state.chatMessages.length === 0
             ? '<div class="empty small">Chưa có tin nhắn nào. Gõ gì đó bên dưới để bắt đầu.</div>'
             : state.chatMessages.map(m => `
-                <div class="chat-msg ${m.sender === me ? 'mine' : 'theirs'}">
-                  <div class="who">${m.sender === me ? 'Bạn' : m.sender} · ${formatTime(m.ts)}</div>
-                  ${m.text}
+                <div style="display:flex;gap:8px;align-items:flex-end;${m.sender === me ? 'flex-direction:row-reverse;' : ''}">
+                  ${avatarHtml(m.sender, 24)}
+                  <div class="chat-msg ${m.sender === me ? 'mine' : 'theirs'}">
+                    <div class="who">${m.sender === me ? 'Bạn' : m.sender} · ${formatTime(m.ts)}</div>
+                    ${m.text}
+                  </div>
                 </div>
               `).join('')
           }
