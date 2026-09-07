@@ -1079,16 +1079,18 @@ function renderShell() {
               <span class="pill" id="saleNamePill">${avatarHtml(state.saleName, 18)} ${state.saleName} · <button id="changeNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
             </div>
           </div>
-          <h3 class="sub-head">Tra lại data đã chốt</h3>
-          <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-            <input class="input" id="saleSearchInput" placeholder="Tìm tên khách hoặc SĐT…" style="max-width:200px;" />
-            <input class="input" type="date" id="saleFilterFrom" style="max-width:145px;" />
-            <span class="muted" style="font-size:12px;">đến</span>
-            <input class="input" type="date" id="saleFilterTo" style="max-width:145px;" />
-            <button class="btn ghost small" id="saleFilterClearBtn">Xoá lọc</button>
+          <button id="saleSearchToggleBtn" class="btn ghost small" style="margin-bottom:12px;">🔍 Tra lại data đã chốt ▾</button>
+          <div id="saleSearchWrap" style="display:none;">
+            <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+              <input class="input" id="saleSearchInput" placeholder="Tìm tên khách hoặc SĐT…" style="max-width:200px;" />
+              <input class="input" type="date" id="saleFilterFrom" style="max-width:145px;" />
+              <span class="muted" style="font-size:12px;">đến</span>
+              <input class="input" type="date" id="saleFilterTo" style="max-width:145px;" />
+              <button class="btn ghost small" id="saleFilterClearBtn">Xoá lọc</button>
+            </div>
+            <div id="saleSearchResults"></div>
           </div>
-          <div id="saleSearchResults"></div>
-          <h3 class="sub-head" style="margin-top:20px;">Data đang chờ nhận</h3>
+          <h3 class="sub-head" style="margin-top:8px;">Data đang chờ nhận</h3>
           <div id="saleBody"></div>
         </section>
       `;
@@ -1491,6 +1493,16 @@ document.getElementById('app').addEventListener('click', async (e) => {
     const url = new URL(window.location.href);
     url.searchParams.set('v', Date.now());
     window.location.href = url.toString();
+    return;
+  }
+  if (e.target.closest('#saleSearchToggleBtn')) {
+    const wrap = document.getElementById('saleSearchWrap');
+    const btn = document.getElementById('saleSearchToggleBtn');
+    if (wrap && btn) {
+      const isOpen = wrap.style.display !== 'none';
+      wrap.style.display = isOpen ? 'none' : 'block';
+      btn.textContent = isOpen ? '🔍 Tra lại data đã chốt ▾' : '🔍 Tra lại data đã chốt ▴';
+    }
     return;
   }
 
