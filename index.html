@@ -892,7 +892,7 @@ function renderShell() {
         <div class="form-grid">
           <div class="drop-zone" id="dropZone" tabindex="0"></div>
           <div class="form-fields">
-            <input class="input" id="nameInput" placeholder="Tên khách hàng" />
+            <input class="input" id="nameInput" placeholder="Tên, SĐT hoặc link Facebook khách" />
             <input class="input" id="noteInput" placeholder="Nguồn data (tuỳ chọn)" />
             <button class="btn primary" id="sendBtn">➤ Gửi vào kho</button>
           </div>
@@ -993,7 +993,7 @@ function renderDropZone() {
   dz.classList.toggle('has-image', !!state.pendingImage);
   dz.innerHTML = state.pendingImage
     ? `<img src="${state.pendingImage}" alt="QR đã dán" /><button class="clear-img" id="clearImgBtn">✕</button>`
-    : `<span class="hint-icon">📋</span><span>Bấm vào đây rồi<br/>dán ảnh (Ctrl+V)</span><button type="button" id="chooseFileBtn" class="choose-file-link">hoặc chọn ảnh từ máy</button>`;
+    : `<span class="hint-icon">📋</span><span>Bấm vào đây rồi<br/>dán ảnh mã QR (Ctrl+V)</span><button type="button" id="chooseFileBtn" class="choose-file-link">hoặc chọn ảnh từ máy</button>`;
 }
 
 function updateFilterOptions(items) {
