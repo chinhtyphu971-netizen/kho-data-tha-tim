@@ -860,7 +860,7 @@ async function sendChatMessage() {
 function renderChatModal() {
   const root = document.getElementById('chatModalRoot');
   if (!state.chatItem) { root.innerHTML = ''; return; }
-  const it = state.chatItem;
+  const it = findItemById(state.chatItem.id) || state.chatItem;
   const me = myCurrentName();
   const otherName = state.role === 'sale' ? (it.sentBy || '') : (it.claimedBy || '');
   const otherLabel = state.role === 'sale'
@@ -878,6 +878,17 @@ function renderChatModal() {
             </div>
           </div>
           <button class="chat-close" id="chatCloseBtn">✕</button>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">
+          ${it.qrImage
+            ? `<img src="${it.qrImage}" alt="QR khách" data-zoom-item="${it.id}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;cursor:zoom-in;flex-shrink:0;" />`
+            : `<div style="width:44px;height:44px;border-radius:8px;background:#0A1120;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#556;font-size:9px;text-align:center;">Chưa có QR</div>`
+          }
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:12.5px;display:flex;align-items:center;gap:6px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.name}</span><button class="copy-btn" data-copy-item="${it.id}" title="Copy">📋</button></div>
+            <div style="font-size:11.5px;color:#7C89A6;">${it.note ? it.note + ' · ' : ''}${it.claimedBy ? `✔ Đã khóa bởi ${it.claimedBy}` : 'Đang chờ nhận'}</div>
+          </div>
+          ${it.zaloLink ? `<a class="zalo-btn" href="${it.zaloLink}" target="_blank" rel="noopener" style="margin-top:0;">💬 Zalo</a>` : ''}
         </div>
         <div class="chat-messages" id="chatMessagesList">
           ${state.chatMessages.length === 0
