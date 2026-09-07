@@ -4,6 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Kho data thả tim</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Kho data thả tim" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0B1220" />
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
@@ -491,7 +496,7 @@ function checkForNewItems(pool) {
   }
   const fresh = pendingIds.filter(it => !knownPendingIds.has(it.id));
   knownPendingIds = idSet;
-  if (fresh.length) notifyNewItems(fresh);
+  if (fresh.length && state.role === 'sale') notifyNewItems(fresh);
 }
 
 let toastTimer = null;
@@ -1000,6 +1005,9 @@ function renderShell() {
           <h2>Gửi data mới</h2>
           <div style="display:flex; align-items:center; gap:10px;">
             <span class="pill" id="pendingPill">📡 0 đang chờ nhận</span>
+            <button class="btn ${state.notifyEnabled ? 'primary' : 'ghost'} small" id="notifyToggleBtn">
+              ${state.notifyEnabled ? '🔔 Đã bật thông báo' : '🔕 Bật thông báo'}
+            </button>
             <span class="pill" id="mktNamePill">${avatarHtml(state.mktName, 18)} ${state.mktName} · <button id="changeMktNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
           </div>
         </div>
@@ -1650,6 +1658,41 @@ if (!dbRef) {
     if (state.lockedRole) renderDynamic();
   });
 }
+
+(function generateAppIcon() {
+  try {
+    const size = 180;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const r = 34;
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.arcTo(size, 0, size, size, r);
+    ctx.arcTo(size, size, 0, size, r);
+    ctx.arcTo(0, size, 0, 0, r);
+    ctx.arcTo(0, 0, size, 0, r);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, '#FF6B81');
+    grad.addColorStop(1, '#B0203A');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.font = `${Math.round(size * 0.55)}px -apple-system, "Segoe UI Emoji", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('❤️', size / 2, size / 2 + size * 0.06);
+    const dataUrl = canvas.toDataURL('image/png');
+    const appleIcon = document.createElement('link');
+    appleIcon.rel = 'apple-touch-icon';
+    appleIcon.href = dataUrl;
+    document.head.appendChild(appleIcon);
+    const favicon = document.createElement('link');
+    favicon.rel = 'icon';
+    favicon.href = dataUrl;
+    document.head.appendChild(favicon);
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>
