@@ -164,6 +164,7 @@
   <footer class="foot" id="foot">› Kho dữ liệu đồng bộ qua internet — Marketing và Sale thấy cùng một dữ liệu dù ở máy khác nhau.</footer>
 </div>
 <input type="file" id="fileInput" accept="image/*" style="display:none" />
+<input type="file" id="avatarFileInput" accept="image/*" style="display:none" />
 
 <script>
 const SALES = ['Cường', 'Bình', 'Hà', 'Minh', 'Lan'];
@@ -198,12 +199,14 @@ const FIREBASE_ENABLED = !!(FIREBASE_CONFIG && FIREBASE_CONFIG.databaseURL);
 let dbRef = null;
 let pinsRef = null;
 let chatsRef = null;
+let profilesRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
     dbRef = firebase.database().ref('pool');
     pinsRef = firebase.database().ref('pins');
     chatsRef = firebase.database().ref('chats');
+    profilesRef = firebase.database().ref('profiles');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -346,6 +349,24 @@ function resizeImage(dataUrl, maxDim, quality) {
   });
 }
 
+function resizeAvatarSquare(dataUrl, size) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.width, img.height);
+      const sx = (img.width - side) / 2;
+      const sy = (img.height - side) / 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 let state = {
   lockedRole: safeGet(ROLE_KEY) || null,
   role: '',
@@ -357,6 +378,7 @@ let state = {
   pendingImage: null,
   pendingZaloLink: null,
   notifyEnabled: safeGet(NOTIFY_KEY) === '1',
+  pendingAvatar: null,
   chatItem: null,
   chatMessages: [],
 };
@@ -521,6 +543,23 @@ async function handleImageFile(file) {
   reader.readAsDataURL(file);
 }
 
+let avatarPickContext = null;
+async function handleAvatarFile(file) {
+  if (!file || !file.type.startsWith('image/') || !avatarPickContext) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const resized = await resizeAvatarSquare(e.target.result, 160);
+    state.pendingAvatar = resized;
+    const previewId = avatarPickContext === 'mkt' ? 'mktAvatarPreview' : 'saleAvatarPreview';
+    const el = document.getElementById(previewId);
+    if (el && resized) {
+      el.style.border = 'none';
+      el.innerHTML = `<img src="${resized}" style="width:100%;height:100%;object-fit:cover;" />`;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 async function addItem() {
   const nameInput = document.getElementById('nameInput');
   const noteInput = document.getElementById('noteInput');
@@ -674,6 +713,52 @@ if (pinsRef) {
     allPins = snap.val() || {};
     if (state.lockedRole === 'admin' && state.role === 'admin') renderDynamic();
   });
+}
+
+let allProfiles = {};
+if (profilesRef) {
+  profilesRef.on('value', (snap) => {
+    allProfiles = snap.val() || {};
+    const mktPill = document.getElementById('mktNamePill');
+    if (mktPill && state.mktName) {
+      const btn = mktPill.querySelector('#changeMktNameBtn');
+      mktPill.innerHTML = `${avatarHtml(state.mktName, 18)} ${state.mktName} · ` + (btn ? btn.outerHTML : '');
+    }
+    const salePill = document.getElementById('saleNamePill');
+    if (salePill && state.saleName) {
+      const btn = salePill.querySelector('#changeNameBtn');
+      salePill.innerHTML = `${avatarHtml(state.saleName, 18)} ${state.saleName} · ` + (btn ? btn.outerHTML : '');
+    }
+    if (state.lockedRole) renderDynamic();
+  });
+}
+
+function nameColor(str) {
+  let hash = 0;
+  for (let i = 0; i < (str || '').length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 55%, 42%)`;
+}
+
+function avatarHtml(displayName, size) {
+  size = size || 26;
+  const key = pinKey(displayName || '');
+  const url = allProfiles[key];
+  if (url) {
+    return `<img src="${url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;vertical-align:middle;" alt="" />`;
+  }
+  const initial = (displayName || '?').trim().charAt(0).toUpperCase() || '?';
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${nameColor(key)};color:#fff;font-size:${Math.round(size*0.45)}px;font-weight:700;flex-shrink:0;vertical-align:middle;">${initial}</span>`;
+}
+
+function avatarHtmlByKey(key, size) {
+  size = size || 26;
+  const url = allProfiles[key];
+  if (url) {
+    return `<img src="${url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;vertical-align:middle;" alt="" />`;
+  }
+  const initial = (key || '?').trim().charAt(0).toUpperCase() || '?';
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${nameColor(key)};color:#fff;font-size:${Math.round(size*0.45)}px;font-weight:700;flex-shrink:0;vertical-align:middle;">${initial}</span>`;
 }
 
 function resetPin(key) {
@@ -887,6 +972,12 @@ function renderShell() {
           <p class="muted" style="margin-top:-6px;margin-bottom:14px;font-size:13px;">
             Nhập tên + đặt mã PIN 1 lần. Lần sau dùng máy khác, gõ đúng tên + PIN này là vào lại được.
           </p>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+            <div id="mktAvatarPreview" style="width:64px;height:64px;border-radius:50%;background:#0D1526;border:2px dashed rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0;" data-avatar-pick="mkt">
+              <span style="font-size:11px;color:#7C89A6;text-align:center;">Chọn<br/>ảnh</span>
+            </div>
+            <div class="muted" style="font-size:12px;max-width:240px;">Ảnh đại diện (tuỳ chọn) — giúp mọi người dễ nhận ra bạn.</div>
+          </div>
           <div class="form-grid">
             <input class="input" id="setupMktNameInput" style="max-width:200px;" placeholder="Nhập tên của bạn…" />
             <input class="input" id="setupMktPinInput" style="max-width:140px;" type="password" inputmode="numeric" placeholder="Mã PIN (4-6 số)" />
@@ -902,7 +993,7 @@ function renderShell() {
           <h2>Gửi data mới</h2>
           <div style="display:flex; align-items:center; gap:10px;">
             <span class="pill" id="pendingPill">📡 0 đang chờ nhận</span>
-            <span class="pill">👤 ${state.mktName} · <button id="changeMktNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+            <span class="pill" id="mktNamePill">${avatarHtml(state.mktName, 18)} ${state.mktName} · <button id="changeMktNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
           </div>
         </div>
         <div class="form-grid">
@@ -938,6 +1029,12 @@ function renderShell() {
           <p class="muted" style="margin-top:-6px;margin-bottom:14px;font-size:13px;">
             Nhập tên + đặt mã PIN 1 lần. Lần sau dùng máy khác, gõ đúng tên + PIN này là vào lại được — người khác gõ tên bạn mà sai PIN sẽ không vào được.
           </p>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+            <div id="saleAvatarPreview" style="width:64px;height:64px;border-radius:50%;background:#0D1526;border:2px dashed rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0;" data-avatar-pick="sale">
+              <span style="font-size:11px;color:#7C89A6;text-align:center;">Chọn<br/>ảnh</span>
+            </div>
+            <div class="muted" style="font-size:12px;max-width:240px;">Ảnh đại diện (tuỳ chọn) — giúp mọi người dễ nhận ra bạn.</div>
+          </div>
           <div class="form-grid">
             <input class="input" id="setupNameInput" style="max-width:200px;" placeholder="Nhập tên của bạn…" />
             <input class="input" id="setupPinInput" style="max-width:140px;" type="password" inputmode="numeric" placeholder="Mã PIN (4-6 số)" />
@@ -954,7 +1051,7 @@ function renderShell() {
               <button class="btn ${state.notifyEnabled ? 'primary' : 'ghost'} small" id="notifyToggleBtn">
                 ${state.notifyEnabled ? '🔔 Đã bật thông báo' : '🔕 Bật thông báo data mới'}
               </button>
-              <span class="pill">👤 ${state.saleName} · <button id="changeNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+              <span class="pill" id="saleNamePill">${avatarHtml(state.saleName, 18)} ${state.saleName} · <button id="changeNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
             </div>
           </div>
           <h3 class="sub-head">Tra lại data đã chốt</h3>
@@ -1072,8 +1169,8 @@ function renderStats(filteredItems) {
     <div style="flex:1;min-width:220px;background:#0D1526;border-radius:10px;padding:12px 14px;">
       <div style="font-size:12.5px;color:#7C89A6;margin-bottom:8px;font-weight:600;">${title}</div>
       ${rows.length === 0 ? '<div class="empty small">Chưa có dữ liệu</div>' : rows.map(([name, count], i) => `
-        <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);">
-          <span>${i + 1}. ${name}</span><b>${count}</b>
+        <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span style="display:flex;align-items:center;gap:8px;">${i + 1}. ${avatarHtml(name, 20)} ${name}</span><b>${count}</b>
         </div>
       `).join('')}
     </div>
@@ -1103,6 +1200,7 @@ function renderPinsSection() {
     <div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;">
       ${keys.map(k => `
         <div class="log-row">
+          ${avatarHtmlByKey(k, 26)}
           <span class="log-name">${k}</span>
           <span class="ticket" style="min-width:auto;">PIN: <b style="color:#EAF0FF;">${allPins[k]}</b></span>
           <button class="btn ghost small" data-reset-pin="${k}">↺ Reset</button>
@@ -1295,9 +1393,9 @@ function renderDynamic() {
             <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
             <span>${it.name}</span>
             <span class="muted">${it.note || '—'}</span>
-            <span class="muted">${it.sentBy || '—'}</span>
+            <span class="muted" style="display:flex;align-items:center;gap:6px;">${it.sentBy ? avatarHtml(it.sentBy, 18) : ''}${it.sentBy || '—'}</span>
             <span class="${it.claimedBy ? 'status locked' : 'status pending'}">${it.claimedBy ? '✔ Đã khóa' : 'Đang chờ'}</span>
-            <span>${it.claimedBy || '—'}</span>
+            <span style="display:flex;align-items:center;gap:6px;">${it.claimedBy ? avatarHtml(it.claimedBy, 18) : ''}${it.claimedBy || '—'}</span>
             <span class="muted">${formatTime(it.createdAt)}</span>
             <span class="muted">${formatTime(it.claimedAt)}</span>
             <button class="row-delete-btn" data-delete="${it.id}" title="Xoá data này">✕</button>
@@ -1379,6 +1477,12 @@ document.getElementById('app').addEventListener('click', async (e) => {
     document.getElementById('fileInput').click();
     return;
   }
+  const avatarPick = e.target.closest('[data-avatar-pick]');
+  if (avatarPick) {
+    avatarPickContext = avatarPick.dataset.avatarPick;
+    document.getElementById('avatarFileInput').click();
+    return;
+  }
   if (e.target.closest('#dropZone')) {
     e.target.closest('#dropZone').focus();
     return;
@@ -1396,6 +1500,10 @@ document.getElementById('app').addEventListener('click', async (e) => {
     if (btn) { btn.disabled = false; btn.textContent = '✔ Xác nhận'; }
     if (!res.ok) { showToast(res.reason || 'Không xác nhận được', 'warn'); return; }
     if (res.registered) showToast('Đã đăng ký PIN cho tên này — nhớ để dùng máy khác', 'ok');
+    if (state.pendingAvatar && profilesRef) {
+      profilesRef.child(pinKey(name)).set(state.pendingAvatar).catch(() => {});
+      state.pendingAvatar = null;
+    }
     setMyName(name);
     return;
   }
@@ -1416,6 +1524,10 @@ document.getElementById('app').addEventListener('click', async (e) => {
     if (btn) { btn.disabled = false; btn.textContent = '✔ Xác nhận'; }
     if (!res.ok) { showToast(res.reason || 'Không xác nhận được', 'warn'); return; }
     if (res.registered) showToast('Đã đăng ký PIN cho tên này — nhớ để dùng máy khác', 'ok');
+    if (state.pendingAvatar && profilesRef) {
+      profilesRef.child(pinKey(name)).set(state.pendingAvatar).catch(() => {});
+      state.pendingAvatar = null;
+    }
     setMktName(name);
     return;
   }
@@ -1504,6 +1616,11 @@ document.getElementById('app').addEventListener('change', (e) => {
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
   if (e.target.files && e.target.files[0]) handleImageFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+document.getElementById('avatarFileInput').addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) handleAvatarFile(e.target.files[0]);
   e.target.value = '';
 });
 
