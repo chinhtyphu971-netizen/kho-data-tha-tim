@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kho data thả tim</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0B1220;
+    color: #EAF0FF;
+    min-height: 100vh;
+  }
+  .app { padding: 20px; display: flex; flex-direction: column; gap: 16px; max-width: 1100px; margin: 0 auto; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { font-size: 28px; }
+  .brand-title { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 12.5px; color: #7C89A6; margin-top: 2px; }
+  .roles { display: flex; gap: 6px; background: #131C31; padding: 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); }
+  .role-btn { background: transparent; border: none; color: #7C89A6; padding: 7px 14px; border-radius: 7px; font-size: 13.5px; cursor: pointer; font-weight: 500; }
+  .role-btn.active { background: #1F2C4A; color: #EAF0FF; }
+  .locked-tag { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #7C89A6; background: #131C31; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); }
+  .locked-tag b { color: #EAF0FF; }
+  .locked-tag button { background: none; border: none; color: #FF8A93; text-decoration: underline; cursor: pointer; font-size: 12px; padding: 0; }
+  .panel { background: #111A2E; border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px 22px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .panel-head h2 { font-size: 16px; font-weight: 650; margin: 0; }
+  .pill { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #FFC93C; background: rgba(255,201,60,0.1); padding: 5px 10px; border-radius: 999px; }
+  .sync-banner { background: #0D1526; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .sync-banner.on { border-color: rgba(53,208,127,0.35); }
+  .sync-banner.off { border-color: rgba(255,201,60,0.35); }
+  .sync-status b { display: block; margin-bottom: 4px; font-size: 13.5px; }
+  .sync-status.on b { color: #35D07F; }
+  .sync-status.off b { color: #FFC93C; }
+  .sync-status p { margin: 0; font-size: 12.5px; color: #7C89A6; line-height: 1.6; }
+  .sync-status ol { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: #7C89A6; line-height: 1.9; }
+  .sync-status a { color: #7fb8ff; }
+  .form-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; align-items: flex-start; }
+  .drop-zone {
+    width: 160px; height: 160px; border: 2px dashed rgba(255,255,255,0.16); border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px;
+    background: #0D1526; cursor: pointer; text-align: center; padding: 10px; color: #7C89A6; font-size: 12px;
+    flex-shrink: 0; position: relative; overflow: hidden;
+  }
+  .drop-zone.has-image { border-style: solid; border-color: rgba(53,208,127,0.4); }
+  .drop-zone img { width: 100%; height: 100%; object-fit: cover; position: absolute; top:0; left:0; border-radius: 10px; }
+  .drop-zone .hint-icon { font-size: 22px; }
+  .choose-file-link { background: none; border: none; color: #FF8A93; font-size: 11.5px; text-decoration: underline; cursor: pointer; padding: 0; margin-top: 2px; }
+  .drop-zone .clear-img {
+    position: absolute; top: 4px; right: 4px; background: rgba(11,18,32,0.85); border: none;
+    color: #fff; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-size: 12px; z-index: 2;
+  }
+  .form-fields { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 220px; }
+  .input { background: #0D1526; border: 1px solid rgba(255,255,255,0.09); color: #EAF0FF; padding: 10px 12px; border-radius: 9px; font-size: 13.5px; width: 100%; }
+  .input:focus { outline: none; border-color: #FF4757; }
+  .btn { display: flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 9px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: none; }
+  .btn.primary { background: #FF4757; color: #fff; align-self: flex-start; }
+  .btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.14); color: #EAF0FF; }
+  .select { background: #0D1526; border: 1px solid rgba(255,255,255,0.09); color: #EAF0FF; padding: 8px 10px; border-radius: 9px; font-size: 13px; }
+  .sub-head { font-size: 13px; color: #7C89A6; margin: 18px 0 8px; font-weight: 600; }
+  .log-list, .locked-list { display: flex; flex-direction: column; gap: 6px; }
+  .log-row, .locked-row { display: flex; align-items: center; gap: 12px; font-size: 13px; background: #0D1526; padding: 9px 12px; border-radius: 8px; }
+  .locked-row { color: #7C89A6; }
+  .locked-by b { color: #EAF0FF; }
+  .ticket { font-family: 'SFMono-Regular', Consolas, monospace; color: #7C89A6; font-size: 12.5px; min-width: 78px; }
+  .log-name { flex: 1; }
+  .status { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+  .status.pending { color: #FFC93C; }
+  .status.locked { color: #35D07F; }
+  .log-time { color: #556; font-size: 12px; min-width: 62px; text-align: right; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .card { background: #0D1526; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card.pulse { animation: pulse 1.6s ease-in-out 2; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,71,87,0); } 50% { box-shadow: 0 0 0 4px rgba(255,71,87,0.18); } }
+  .card-top { display: flex; justify-content: space-between; align-items: center; }
+  .time { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: #556; }
+  .card-body { display: flex; gap: 12px; align-items: center; }
+  .card-qr { width: 92px; height: 92px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #0A1120; }
+  .card-name { font-size: 14.5px; font-weight: 600; }
+  .card-note { font-size: 12px; color: #7C89A6; margin-top: 2px; }
+  .heart-btn { display: flex; align-items: center; justify-content: center; gap: 7px; background: #FF4757; color: #fff; border: none; padding: 10px; border-radius: 9px; font-size: 13.5px; font-weight: 650; cursor: pointer; width: 100%; }
+  .heart-btn:hover { background: #ff5c6c; }
+  .table { display: flex; flex-direction: column; gap: 2px; overflow-x: auto; }
+  .table-head, .table-row { display: grid; grid-template-columns: 40px 60px 100px 1.1fr 1.2fr 100px 110px 100px 90px 90px 32px; gap: 10px; padding: 9px 10px; font-size: 12.5px; align-items: center; min-width: 840px; }
+  .row-delete-btn { background: rgba(255,71,87,0.12); border: 1px solid rgba(255,71,87,0.3); color: #FF8A93; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1; }
+  .row-delete-btn:hover { background: rgba(255,71,87,0.25); }
+  .table-head { color: #556; font-size: 11.5px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .table-row { background: #0D1526; border-radius: 8px; }
+  .table-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; background: #0A1120; }
+  .muted { color: #7C89A6; }
+  .empty { color: #556; font-size: 13.5px; padding: 30px 0; text-align: center; }
+  .empty.small { padding: 10px 0; text-align: left; }
+  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #1F2C4A; border: 1px solid rgba(255,255,255,0.1); padding: 10px 16px; border-radius: 9px; font-size: 13px; z-index: 50; display: none; max-width: 90vw; text-align: center; }
+  .toast.show { display: block; }
+  .toast.ok { border-color: rgba(53,208,127,0.4); color: #35D07F; }
+  .toast.warn { border-color: rgba(255,71,87,0.4); color: #FF8A93; }
+  .foot { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #556; margin-top: 4px; }
+  .gate-wrap { display: flex; justify-content: center; padding: 40px 10px; }
+  .gate-card { background: #111A2E; border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 28px; max-width: 380px; width: 100%; text-align: center; }
+  .gate-card h2 { margin: 0 0 4px; font-size: 17px; }
+  .gate-card p { color: #7C89A6; font-size: 13px; margin: 0 0 18px; }
+  .gate-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+  .gate-role-btn { background: #0D1526; border: 1px solid rgba(255,255,255,0.09); color: #EAF0FF; padding: 12px; border-radius: 10px; font-size: 14px; cursor: pointer; text-align: left; padding-left: 16px; }
+  .gate-role-btn:hover { border-color: #FF4757; }
+  .gate-code-row { display: flex; gap: 8px; margin-top: 10px; }
+  .gate-back { margin-top: 12px; background: none; border: none; color: #7C89A6; text-decoration: underline; cursor: pointer; font-size: 12px; }
+  .gate-error { color: #FF8A93; font-size: 12.5px; margin-top: 8px; }
+  .chat-btn { background: rgba(127,184,255,0.12); border: 1px solid rgba(127,184,255,0.35); color: #7fb8ff; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; cursor: pointer; font-weight: 600; position: relative; }
+  .chat-btn.has-unread { border-color: rgba(255,71,87,0.5); animation: pulse 1.6s ease-in-out infinite; }
+  .chat-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; background: #FF4757; color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; margin-left: 6px; }
+  .chat-btn:hover { background: rgba(127,184,255,0.22); }
+  .chat-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .chat-modal { background: #111A2E; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 100%; max-width: 420px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+  .chat-header { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .chat-header .title { font-size: 14px; font-weight: 650; }
+  .chat-header .sub { font-size: 12px; color: #7C89A6; margin-top: 3px; }
+  .chat-close { background: none; border: none; color: #7C89A6; cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 160px; }
+  .chat-msg { max-width: 78%; padding: 8px 11px; border-radius: 10px; font-size: 13px; line-height: 1.4; }
+  .chat-msg.mine { align-self: flex-end; background: #FF4757; color: #fff; border-bottom-right-radius: 3px; }
+  .chat-msg.theirs { align-self: flex-start; background: #0D1526; color: #EAF0FF; border-bottom-left-radius: 3px; }
+  .chat-msg .who { font-size: 10.5px; opacity: 0.75; margin-bottom: 2px; }
+  .chat-input-row { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .chat-input-row input { flex: 1; }
+  .card-qr { cursor: zoom-in; }
+  .lightbox-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 110; padding: 20px; }
+  .lightbox-img { max-width: 92vw; max-height: 82vh; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+  .lightbox-close { position: absolute; top: 18px; right: 22px; background: rgba(255,255,255,0.12); border: none; color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  .zalo-btn { display: flex; align-items: center; justify-content: center; gap: 6px; background: #0068FF; color: #fff; border: none; padding: 9px; border-radius: 8px; font-size: 12.5px; font-weight: 650; cursor: pointer; text-decoration: none; margin-top: 6px; }
+  .zalo-btn:hover { background: #1a7bff; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">❤️</span>
+      <div>
+        <div class="brand-title">Kho data thả tim</div>
+        <div class="brand-sub">Ai bấm ❤️ trước, người đó nhận — data tự khóa ngay sau đó</div>
+      </div>
+    </div>
+    <div id="navSlot"></div>
+  </header>
+  <div class="toast" id="toast"></div>
+  <main id="main"></main>
+  <div id="chatModalRoot"></div>
+  <div id="lightboxRoot"></div>
+  <footer class="foot" id="foot">› Kho dữ liệu đồng bộ qua internet — Marketing và Sale thấy cùng một dữ liệu dù ở máy khác nhau.</footer>
+</div>
+<input type="file" id="fileInput" accept="image/*" style="display:none" />
+
+<script>
+const SALES = ['Cường', 'Bình', 'Hà', 'Minh', 'Lan'];
+const NAME_KEY = 'khodata-myname-v1';
+const MKT_NAME_KEY = 'khodata-myname-mkt-v1';
+const NOTIFY_KEY = 'khodata-notify-v1';
+const CHAT_READ_KEY = 'khodata-chatread-v1';
+const ROLE_KEY = 'khodata-myrole-v1';
+const LOCAL_POOL_CACHE_KEY = 'khodata-pool-cache-v1';
+
+// Mã truy cập cho từng vai trò — đổi trực tiếp ở đây rồi đưa file mới lên là áp dụng luôn.
+const ROLE_CODES = {
+  marketing: 'MKT2026',
+  sale: 'SALE2026',
+  admin: '112233',
+};
+
+// Cấu hình Firebase (kho dữ liệu dùng chung, đồng bộ thời gian thực).
+// Để trống {} nếu chưa thiết lập — xem hướng dẫn ở màn Quản trị.
+// Sau khi tạo project Firebase, dán nguyên object config vào đây rồi lưu + đưa file lên lại.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyANbJAD96DyIvykR9BMwiTH0dv0C_f03hY",
+  authDomain: "kho-data-tha-tim.firebaseapp.com",
+  databaseURL: "https://kho-data-tha-tim-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "kho-data-tha-tim",
+  storageBucket: "kho-data-tha-tim.firebasestorage.app",
+  messagingSenderId: "65324221294",
+  appId: "1:65324221294:web:40a30d953aaf4b7a55f77f",
+};
+
+const FIREBASE_ENABLED = !!(FIREBASE_CONFIG && FIREBASE_CONFIG.databaseURL);
+let dbRef = null;
+let pinsRef = null;
+let chatsRef = null;
+if (FIREBASE_ENABLED) {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    dbRef = firebase.database().ref('pool');
+    pinsRef = firebase.database().ref('pins');
+    chatsRef = firebase.database().ref('chats');
+  } catch (e) {
+    console.error('Firebase init failed', e);
+  }
+}
+
+// URL Google Apps Script Web App để tự ghi dữ liệu vào Google Sheet.
+// Để trống '' nếu chưa thiết lập — xem hướng dẫn ở màn Quản trị.
+const SHEETS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbz6b1um3dix-kQrvBZWKZ-mpWUfabj628mvDF1M6mGSfuROydKRSfTEE089mZ03Lzh1/exec';
+
+function syncToSheet(item) {
+  if (!SHEETS_WEBHOOK_URL) return;
+  try {
+    fetch(SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        id: item.id,
+        name: item.name,
+        note: item.note || '',
+        sentBy: item.sentBy || '',
+        claimedBy: item.claimedBy || '',
+        createdAt: item.createdAt ? formatTime(item.createdAt) : '',
+        claimedAt: item.claimedAt ? formatTime(item.claimedAt) : '',
+        status: item.claimedBy ? 'Đã khóa' : 'Đang chờ',
+      }),
+    }).catch(() => {});
+  } catch (e) {}
+}
+
+function pinKey(name) {
+  // Firebase keys can't contain . # $ [ ] / — strip those just in case.
+  return name.trim().toLowerCase().replace(/[.#$\[\]\/]/g, '');
+}
+
+async function checkOrRegisterPin(name, pin) {
+  if (!pinsRef) return { ok: true }; // no shared store configured, skip PIN check
+  const key = pinKey(name);
+  if (!key) return { ok: false, reason: 'Tên không hợp lệ' };
+  try {
+    const snap = await pinsRef.child(key).once('value');
+    const existing = snap.val();
+    if (existing === null) {
+      // First time this name is used — register this PIN for it.
+      await pinsRef.child(key).set(pin);
+      return { ok: true, registered: true };
+    }
+    if (existing === pin) return { ok: true };
+    return { ok: false, reason: 'Sai mã PIN cho tên này' };
+  } catch (e) {
+    return { ok: false, reason: 'Không kiểm tra được PIN, kiểm tra mạng rồi thử lại' };
+  }
+}
+
+function defaultPool() { return { nextId: 128, items: [] }; }
+
+function normalizePool(pool) {
+  if (!pool || typeof pool !== 'object') return defaultPool();
+  return {
+    nextId: typeof pool.nextId === 'number' ? pool.nextId : defaultPool().nextId,
+    items: Array.isArray(pool.items) ? pool.items : [],
+  };
+}
+
+function safeGet(key) { try { return localStorage.getItem(key) || ''; } catch (e) { return ''; } }
+function safeSet(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
+function safeRemove(key) { try { localStorage.removeItem(key); } catch (e) {} }
+
+function loadLocalCache() {
+  try {
+    const raw = localStorage.getItem(LOCAL_POOL_CACHE_KEY);
+    if (raw) return normalizePool(JSON.parse(raw));
+  } catch (e) {}
+  return defaultPool();
+}
+function saveLocalCache(pool) {
+  try { localStorage.setItem(LOCAL_POOL_CACHE_KEY, JSON.stringify(pool)); } catch (e) {}
+}
+
+let remoteWarned = false;
+
+async function loadPool() {
+  if (dbRef) {
+    try {
+      const snap = await dbRef.once('value');
+      const val = snap.val();
+      const pool = normalizePool(val);
+      saveLocalCache(pool);
+      remoteWarned = false;
+      return pool;
+    } catch (e) {
+      if (!remoteWarned) {
+        showToast('Không kết nối được kho dùng chung — đang dùng dữ liệu tạm trên máy', 'warn');
+        remoteWarned = true;
+      }
+      return loadLocalCache();
+    }
+  }
+  return loadLocalCache();
+}
+
+async function savePool(pool) {
+  saveLocalCache(pool);
+  if (dbRef) {
+    try {
+      await dbRef.set(pool);
+      remoteWarned = false;
+      return true;
+    } catch (e) {
+      if (!remoteWarned) {
+        showToast('Chưa lưu được lên kho dùng chung — kiểm tra mạng rồi thử lại', 'warn');
+        remoteWarned = true;
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleTimeString('vi-VN', { hour12: false });
+}
+
+function resizeImage(dataUrl, maxDim, quality) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; }
+      else if (h >= w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+let state = {
+  lockedRole: safeGet(ROLE_KEY) || null,
+  role: '',
+  gatePick: null,
+  gateError: '',
+  saleName: safeGet(NAME_KEY),
+  mktName: safeGet(MKT_NAME_KEY),
+  pool: normalizePool(loadLocalCache()),
+  pendingImage: null,
+  pendingZaloLink: null,
+  notifyEnabled: safeGet(NOTIFY_KEY) === '1',
+  chatItem: null,
+  chatMessages: [],
+};
+state.role = state.lockedRole === 'admin' ? 'admin' : (state.lockedRole || '');
+let lastPoolSerialized = JSON.stringify(state.pool);
+
+function unlockRole(role) {
+  state.lockedRole = role;
+  safeSet(ROLE_KEY, role);
+  state.role = role;
+  state.gatePick = null;
+  state.gateError = '';
+  renderApp();
+}
+
+function relockDevice() {
+  state.lockedRole = null;
+  state.role = '';
+  state.gatePick = null;
+  state.gateError = '';
+  safeRemove(ROLE_KEY);
+  renderApp();
+}
+
+function setMyName(name) {
+  state.saleName = name;
+  safeSet(NAME_KEY, name);
+  renderShell();
+}
+
+function forgetMyName() {
+  state.saleName = '';
+  safeRemove(NAME_KEY);
+  renderShell();
+}
+
+function setMktName(name) {
+  state.mktName = name;
+  safeSet(MKT_NAME_KEY, name);
+  renderShell();
+}
+
+function forgetMktName() {
+  state.mktName = '';
+  safeRemove(MKT_NAME_KEY);
+  renderShell();
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    o.start();
+    o.stop(ctx.currentTime + 0.36);
+  } catch (e) {}
+}
+
+async function enableNotifications() {
+  if (!('Notification' in window)) {
+    showToast('Trình duyệt này không hỗ trợ thông báo', 'warn');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    state.notifyEnabled = true;
+    safeSet(NOTIFY_KEY, '1');
+    showToast('Đã bật thông báo data mới', 'ok');
+  } else {
+    showToast('Bạn chưa cho phép thông báo trong trình duyệt', 'warn');
+  }
+  renderShell();
+}
+
+function disableNotifications() {
+  state.notifyEnabled = false;
+  safeSet(NOTIFY_KEY, '0');
+  renderShell();
+}
+
+function notifyNewItems(newItems) {
+  if (!newItems.length) return;
+  playBeep();
+  if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
+    const first = newItems[0];
+    const body = newItems.length === 1
+      ? `${first.name} vừa được gửi vào kho`
+      : `${newItems.length} data mới vừa được gửi vào kho`;
+    try {
+      const n = new Notification('❤️ Có data mới!', { body });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch (e) {}
+  } else {
+    showToast(newItems.length === 1 ? `📡 Data mới: ${newItems[0].name}` : `📡 Có ${newItems.length} data mới`, 'ok');
+  }
+}
+
+let knownPendingIds = null;
+function checkForNewItems(pool) {
+  const pendingIds = pool.items.filter(it => !it.claimedBy);
+  const idSet = new Set(pendingIds.map(it => it.id));
+  if (knownPendingIds === null) {
+    knownPendingIds = idSet;
+    return;
+  }
+  const fresh = pendingIds.filter(it => !knownPendingIds.has(it.id));
+  knownPendingIds = idSet;
+  if (fresh.length) notifyNewItems(fresh);
+}
+
+let toastTimer = null;
+function showToast(msg, kind) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast show ' + kind;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 3200);
+}
+
+function decodeQrLink(dataUrl) {
+  return new Promise((resolve) => {
+    if (typeof jsQR === 'undefined') { resolve(null); return; }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const result = jsQR(imageData.data, canvas.width, canvas.height);
+        if (!result || !result.data) { resolve(null); return; }
+        const text = result.data.trim();
+        if (/^https?:\/\//i.test(text)) { resolve(text); return; }
+        const digits = text.replace(/\D/g, '');
+        if (digits.length >= 9 && digits.length <= 12) { resolve(`https://zalo.me/${digits}`); return; }
+        resolve(null);
+      } catch (e) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+async function handleImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const resized = await resizeImage(e.target.result, 480, 0.75);
+    state.pendingImage = resized;
+    renderDropZone();
+    const link = await decodeQrLink(e.target.result);
+    state.pendingZaloLink = link;
+    if (link) showToast('Đã đọc được link Zalo từ ảnh QR', 'ok');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function addItem() {
+  const nameInput = document.getElementById('nameInput');
+  const noteInput = document.getElementById('noteInput');
+  const name = nameInput ? nameInput.value : '';
+  const note = noteInput ? noteInput.value : '';
+  if (!name.trim()) { showToast('Nhập tên khách trước đã', 'warn'); return; }
+  const sendBtn = document.getElementById('sendBtn');
+  if (sendBtn) sendBtn.disabled = true;
+  const current = await loadPool();
+  const id = current.nextId;
+  const item = {
+    id, name: name.trim(), note: note.trim(), createdAt: Date.now(),
+    claimedBy: null, claimedAt: null, qrImage: state.pendingImage || null,
+    sentBy: state.mktName || '', zaloLink: state.pendingZaloLink || null,
+  };
+  const next = { nextId: id + 1, items: [item, ...current.items] };
+  await savePool(next);
+  state.pool = next;
+  lastPoolSerialized = JSON.stringify(next);
+  state.pendingImage = null;
+  state.pendingZaloLink = null;
+  if (nameInput) nameInput.value = '';
+  if (noteInput) noteInput.value = '';
+  if (sendBtn) sendBtn.disabled = false;
+  renderDropZone();
+  renderDynamic();
+  syncToSheet(item);
+  showToast(`Đã gửi DATA #${String(id).padStart(6,'0')}`, 'ok');
+}
+
+async function claim(id) {
+  if (!state.saleName) { showToast('Chọn tên Sale trước khi bấm ❤️', 'warn'); return; }
+  const current = await loadPool();
+  const idx = current.items.findIndex(it => it.id === id);
+  if (idx === -1) return;
+  if (current.items[idx].claimedBy) {
+    state.pool = current;
+    lastPoolSerialized = JSON.stringify(current);
+    renderDynamic();
+    showToast(`Chậm rồi — ${current.items[idx].claimedBy} lấy trước`, 'warn');
+    return;
+  }
+  current.items[idx] = { ...current.items[idx], claimedBy: state.saleName, claimedAt: Date.now() };
+  await savePool(current);
+  state.pool = current;
+  lastPoolSerialized = JSON.stringify(current);
+  renderDynamic();
+  syncToSheet(current.items[idx]);
+  showToast(`Đã khóa DATA #${String(id).padStart(6,'0')} cho ${state.saleName}`, 'ok');
+}
+
+async function resetAll() {
+  const fresh = defaultPool();
+  await savePool(fresh);
+  state.pool = fresh;
+  lastPoolSerialized = JSON.stringify(fresh);
+  renderDynamic();
+  showToast('Đã xoá toàn bộ dữ liệu demo', 'ok');
+}
+
+async function deleteItem(id) {
+  const current = await loadPool();
+  const next = { nextId: current.nextId, items: current.items.filter(it => it.id !== id) };
+  await savePool(next);
+  state.pool = next;
+  lastPoolSerialized = JSON.stringify(next);
+  renderDynamic();
+  showToast(`Đã xoá DATA #${String(id).padStart(6,'0')}`, 'ok');
+}
+
+function loadReadMap() {
+  try { return JSON.parse(localStorage.getItem(CHAT_READ_KEY) || '{}'); } catch (e) { return {}; }
+}
+function saveReadMap(map) {
+  try { localStorage.setItem(CHAT_READ_KEY, JSON.stringify(map)); } catch (e) {}
+}
+let chatReadMap = loadReadMap();
+let allChatsRaw = {};
+
+function markChatRead(itemId) {
+  chatReadMap[itemId] = Date.now();
+  saveReadMap(chatReadMap);
+}
+
+function getUnreadCount(itemId) {
+  const msgs = allChatsRaw[itemId] ? Object.values(allChatsRaw[itemId]) : [];
+  const lastRead = chatReadMap[itemId] || 0;
+  const me = myCurrentName();
+  return msgs.filter(m => m.ts > lastRead && m.sender !== me).length;
+}
+
+function myCurrentName() {
+  return state.role === 'sale' ? state.saleName : (state.role === 'marketing' ? state.mktName : '');
+}
+
+function isRelevantChatItem(item) {
+  if (state.role === 'sale') return item.claimedBy === state.saleName;
+  if (state.role === 'marketing') return item.sentBy === state.mktName;
+  return false;
+}
+
+let knownMsgKeys = null;
+function checkForNewChatMessages(raw) {
+  const currentKeys = new Set();
+  const fresh = [];
+  Object.keys(raw).forEach(itemId => {
+    const msgs = raw[itemId] || {};
+    Object.keys(msgs).forEach(pushKey => {
+      const key = itemId + ':' + pushKey;
+      currentKeys.add(key);
+      if (knownMsgKeys !== null && !knownMsgKeys.has(key)) {
+        const m = msgs[pushKey];
+        const me = myCurrentName();
+        if (m.sender && m.sender !== me) {
+          const item = findItemById(Number(itemId));
+          if (item && isRelevantChatItem(item)) fresh.push({ item, message: m });
+        }
+      }
+    });
+  });
+  if (knownMsgKeys === null) { knownMsgKeys = currentKeys; return; }
+  knownMsgKeys = currentKeys;
+  if (fresh.length) {
+    playBeep();
+    const first = fresh[0];
+    const body = fresh.length === 1
+      ? `${first.message.sender}: ${first.message.text}`
+      : `${fresh.length} tin nhắn mới`;
+    if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const n = new Notification('💬 Tin nhắn mới', { body });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch (e) {}
+    } else {
+      showToast(`💬 ${body}`, 'ok');
+    }
+    if (state.lockedRole) renderDynamic();
+  }
+}
+
+if (chatsRef) {
+  chatsRef.on('value', (snap) => {
+    allChatsRaw = snap.val() || {};
+    checkForNewChatMessages(allChatsRaw);
+  });
+}
+
+function openLightbox(dataUrl) {
+  if (!dataUrl) return;
+  const root = document.getElementById('lightboxRoot');
+  root.innerHTML = `
+    <div class="lightbox-overlay" id="lightboxOverlay">
+      <button class="lightbox-close" id="lightboxCloseBtn">✕</button>
+      <img class="lightbox-img" src="${dataUrl}" alt="QR phóng to" />
+    </div>
+  `;
+}
+function closeLightbox() {
+  document.getElementById('lightboxRoot').innerHTML = '';
+}
+
+function findItemById(id) {
+  return (state.pool.items || []).find(it => it.id === id) || null;
+}
+
+let chatListenerItemId = null;
+function openChat(item) {
+  if (!chatsRef) {
+    showToast('Cần bật kho dùng chung (Firebase) để dùng nhắn tin', 'warn');
+    return;
+  }
+  if (!myCurrentName()) {
+    showToast('Cần có tên để nhắn tin', 'warn');
+    return;
+  }
+  state.chatItem = item;
+  state.chatMessages = [];
+  renderChatModal();
+  markChatRead(item.id);
+  renderDynamic();
+  chatListenerItemId = item.id;
+  chatsRef.child(String(item.id)).on('value', (snap) => {
+    if (chatListenerItemId !== item.id) return;
+    const val = snap.val();
+    const list = val ? Object.values(val).sort((a, b) => a.ts - b.ts) : [];
+    state.chatMessages = list;
+    renderChatModal();
+    markChatRead(item.id);
+    renderDynamic();
+  });
+}
+
+function closeChat() {
+  if (chatListenerItemId !== null && chatsRef) {
+    chatsRef.child(String(chatListenerItemId)).off();
+  }
+  chatListenerItemId = null;
+  state.chatItem = null;
+  state.chatMessages = [];
+  document.getElementById('chatModalRoot').innerHTML = '';
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input ? input.value.trim() : '';
+  if (!text || !state.chatItem) return;
+  const me = myCurrentName();
+  try {
+    await chatsRef.child(String(state.chatItem.id)).push({
+      sender: me,
+      role: state.role,
+      text,
+      ts: Date.now(),
+    });
+    if (input) input.value = '';
+  } catch (e) {
+    showToast('Gửi tin nhắn thất bại, kiểm tra mạng', 'warn');
+  }
+}
+
+function renderChatModal() {
+  const root = document.getElementById('chatModalRoot');
+  if (!state.chatItem) { root.innerHTML = ''; return; }
+  const it = state.chatItem;
+  const me = myCurrentName();
+  const otherLabel = state.role === 'sale'
+    ? (it.sentBy ? `Marketing: ${it.sentBy}` : 'Marketing (không rõ tên)')
+    : (it.claimedBy ? `Sale: ${it.claimedBy}` : 'Sale');
+  root.innerHTML = `
+    <div class="chat-overlay" id="chatOverlay">
+      <div class="chat-modal">
+        <div class="chat-header">
+          <div>
+            <div class="title">DATA #${String(it.id).padStart(6,'0')} — ${it.name}</div>
+            <div class="sub">Trao đổi với ${otherLabel}</div>
+          </div>
+          <button class="chat-close" id="chatCloseBtn">✕</button>
+        </div>
+        <div class="chat-messages" id="chatMessagesList">
+          ${state.chatMessages.length === 0
+            ? '<div class="empty small">Chưa có tin nhắn nào. Gõ gì đó bên dưới để bắt đầu.</div>'
+            : state.chatMessages.map(m => `
+                <div class="chat-msg ${m.sender === me ? 'mine' : 'theirs'}">
+                  <div class="who">${m.sender === me ? 'Bạn' : m.sender} · ${formatTime(m.ts)}</div>
+                  ${m.text}
+                </div>
+              `).join('')
+          }
+        </div>
+        <div class="chat-input-row">
+          <input class="input" id="chatInput" placeholder="Nhắn gì đó…" />
+          <button class="btn primary" id="chatSendBtn">Gửi</button>
+        </div>
+      </div>
+    </div>
+  `;
+  const list = document.getElementById('chatMessagesList');
+  if (list) list.scrollTop = list.scrollHeight;
+  const input = document.getElementById('chatInput');
+  if (input) input.focus();
+}
+
+function qrThumb(it, sizeClass) {
+  if (it.qrImage) return `<img class="${sizeClass}" src="${it.qrImage}" alt="QR khách" data-zoom-item="${it.id}" style="cursor:zoom-in;" />`;
+  return `<span class="muted">—</span>`;
+}
+
+const ROLE_LABEL = { marketing: 'Marketing', sale: 'Sale', admin: 'Quản trị' };
+
+function renderApp() {
+  if (!state.lockedRole) {
+    renderGate();
+  } else {
+    renderNav();
+    renderShell();
+  }
+}
+
+function renderGate() {
+  document.getElementById('navSlot').innerHTML = '';
+  document.getElementById('foot').style.visibility = 'hidden';
+  const main = document.getElementById('main');
+
+  if (!state.gatePick) {
+    main.innerHTML = `
+      <div class="gate-wrap">
+        <div class="gate-card">
+          <h2>Bạn đang truy cập với vai trò nào?</h2>
+          <p>Máy này sẽ tự nhớ lựa chọn cho lần sau.</p>
+          <div class="gate-options">
+            <button class="gate-role-btn" data-pick="marketing">📣 Marketing — gửi data</button>
+            <button class="gate-role-btn" data-pick="sale">❤️ Sale — nhận data</button>
+            <button class="gate-role-btn" data-pick="admin">🛡️ Quản trị — xem toàn bộ</button>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    main.innerHTML = `
+      <div class="gate-wrap">
+        <div class="gate-card">
+          <h2>Nhập mã truy cập — ${ROLE_LABEL[state.gatePick]}</h2>
+          <p>Hỏi Quản trị nếu bạn chưa có mã.</p>
+          <div class="gate-code-row">
+            <input class="input" type="password" id="gateCodeInput" placeholder="Mã truy cập" />
+            <button class="btn primary" id="gateConfirmBtn">Vào</button>
+          </div>
+          ${state.gateError ? `<div class="gate-error">${state.gateError}</div>` : ''}
+          <button class="gate-back" id="gateBackBtn">← Chọn lại vai trò</button>
+        </div>
+      </div>
+    `;
+    setTimeout(() => { const el = document.getElementById('gateCodeInput'); if (el) el.focus(); }, 0);
+  }
+}
+
+function renderNav() {
+  document.getElementById('foot').style.visibility = 'visible';
+  const slot = document.getElementById('navSlot');
+  if (state.lockedRole === 'admin') {
+    slot.innerHTML = `
+      <nav class="roles" id="roleNav">
+        <button class="role-btn" data-role="marketing">Marketing</button>
+        <button class="role-btn" data-role="sale">Sale</button>
+        <button class="role-btn" data-role="admin">Quản trị</button>
+      </nav>
+    `;
+    document.querySelectorAll('#roleNav .role-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.role === state.role);
+    });
+  } else {
+    slot.innerHTML = `
+      <div class="locked-tag">
+        Đang dùng như <b>${ROLE_LABEL[state.lockedRole]}</b>
+        <button id="relockBtn">đổi vai trò</button>
+      </div>
+    `;
+  }
+}
+
+function renderShell() {
+  const main = document.getElementById('main');
+  if (state.role === 'marketing') {
+    if (!state.mktName) {
+      main.innerHTML = `
+        <section class="panel">
+          <div class="panel-head"><h2>Máy này là của ai?</h2></div>
+          <p class="muted" style="margin-top:-6px;margin-bottom:14px;font-size:13px;">
+            Nhập tên + đặt mã PIN 1 lần. Lần sau dùng máy khác, gõ đúng tên + PIN này là vào lại được.
+          </p>
+          <div class="form-grid">
+            <input class="input" id="setupMktNameInput" style="max-width:200px;" placeholder="Nhập tên của bạn…" />
+            <input class="input" id="setupMktPinInput" style="max-width:140px;" type="password" inputmode="numeric" placeholder="Mã PIN (4-6 số)" />
+            <button class="btn primary" id="setupMktConfirmBtn">✔ Xác nhận</button>
+          </div>
+        </section>
+      `;
+      return;
+    }
+    main.innerHTML = `
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Gửi data mới</h2>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="pill" id="pendingPill">📡 0 đang chờ nhận</span>
+            <span class="pill">👤 ${state.mktName} · <button id="changeMktNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="drop-zone" id="dropZone" tabindex="0"></div>
+          <div class="form-fields">
+            <input class="input" id="nameInput" placeholder="Tên khách hàng" />
+            <input class="input" id="noteInput" placeholder="Nguồn data (tuỳ chọn)" />
+            <button class="btn primary" id="sendBtn">➤ Gửi vào kho</button>
+          </div>
+        </div>
+        <h3 class="sub-head">Đã gửi gần đây</h3>
+        <div class="log-list" id="logList"></div>
+      </section>
+    `;
+    renderDropZone();
+  } else if (state.role === 'sale') {
+    if (!state.saleName) {
+      main.innerHTML = `
+        <section class="panel">
+          <div class="panel-head"><h2>Máy này là của ai?</h2></div>
+          <p class="muted" style="margin-top:-6px;margin-bottom:14px;font-size:13px;">
+            Nhập tên + đặt mã PIN 1 lần. Lần sau dùng máy khác, gõ đúng tên + PIN này là vào lại được — người khác gõ tên bạn mà sai PIN sẽ không vào được.
+          </p>
+          <div class="form-grid">
+            <input class="input" id="setupNameInput" style="max-width:200px;" placeholder="Nhập tên của bạn…" />
+            <input class="input" id="setupPinInput" style="max-width:140px;" type="password" inputmode="numeric" placeholder="Mã PIN (4-6 số)" />
+            <button class="btn primary" id="setupConfirmBtn">✔ Xác nhận</button>
+          </div>
+        </section>
+      `;
+    } else {
+      main.innerHTML = `
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Data đang chờ nhận</h2>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <button class="btn ${state.notifyEnabled ? 'primary' : 'ghost'} small" id="notifyToggleBtn">
+                ${state.notifyEnabled ? '🔔 Đã bật thông báo' : '🔕 Bật thông báo data mới'}
+              </button>
+              <span class="pill">👤 ${state.saleName} · <button id="changeNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+            </div>
+          </div>
+          <div id="saleBody"></div>
+          <h3 class="sub-head">Tra lại data đã chốt</h3>
+          <input class="input" id="saleSearchInput" placeholder="Tìm theo tên khách hoặc SĐT đã nhận trước đó…" style="margin-bottom:12px;" />
+          <div id="saleSearchResults"></div>
+        </section>
+      `;
+    }
+  } else if (state.role === 'admin') {
+    main.innerHTML = `
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Toàn bộ nhật ký</h2>
+          <button class="btn ghost" id="resetBtn">↺ Xoá dữ liệu demo</button>
+        </div>
+        <div id="syncBanner"></div>
+        <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+          <input class="input" id="filterSearch" placeholder="Tìm tên khách / nguồn…" style="max-width:180px;" />
+          <select class="select" id="filterSentBy"><option value="">Tất cả Marketing</option></select>
+          <select class="select" id="filterClaimedBy"><option value="">Tất cả Sale</option></select>
+          <select class="select" id="filterStatus">
+            <option value="">Tất cả trạng thái</option>
+            <option value="pending">Đang chờ</option>
+            <option value="claimed">Đã khóa</option>
+          </select>
+          <input class="input" type="date" id="filterFrom" style="max-width:145px;" />
+          <span class="muted" style="font-size:12px;">đến</span>
+          <input class="input" type="date" id="filterTo" style="max-width:145px;" />
+          <button class="btn ghost small" id="filterClearBtn">Xoá lọc</button>
+        </div>
+        <h3 class="sub-head">Tổng hợp theo người (theo bộ lọc hiện tại)</h3>
+        <div id="statsSection" style="margin-bottom:20px;"></div>
+        <h3 class="sub-head">Chi tiết</h3>
+        <div class="table" id="adminTable"></div>
+      </section>
+    `;
+  }
+  renderDynamic();
+}
+
+function renderDropZone() {
+  const dz = document.getElementById('dropZone');
+  if (!dz) return;
+  dz.classList.toggle('has-image', !!state.pendingImage);
+  dz.innerHTML = state.pendingImage
+    ? `<img src="${state.pendingImage}" alt="QR đã dán" /><button class="clear-img" id="clearImgBtn">✕</button>`
+    : `<span class="hint-icon">📋</span><span>Bấm vào đây rồi<br/>dán ảnh (Ctrl+V)</span><button type="button" id="chooseFileBtn" class="choose-file-link">hoặc chọn ảnh từ máy</button>`;
+}
+
+function updateFilterOptions(items) {
+  const sentBySelect = document.getElementById('filterSentBy');
+  const claimedBySelect = document.getElementById('filterClaimedBy');
+  if (sentBySelect) {
+    const names = Array.from(new Set(items.map(i => i.sentBy).filter(Boolean))).sort();
+    const prev = sentBySelect.value;
+    sentBySelect.innerHTML = `<option value="">Tất cả Marketing</option>` + names.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (names.includes(prev)) sentBySelect.value = prev;
+  }
+  if (claimedBySelect) {
+    const names = Array.from(new Set(items.map(i => i.claimedBy).filter(Boolean))).sort();
+    const prev = claimedBySelect.value;
+    claimedBySelect.innerHTML = `<option value="">Tất cả Sale</option>` + names.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (names.includes(prev)) claimedBySelect.value = prev;
+  }
+}
+
+function getFilteredItems(items) {
+  const search = (document.getElementById('filterSearch')?.value || '').trim().toLowerCase();
+  const sentBy = document.getElementById('filterSentBy')?.value || '';
+  const claimedBy = document.getElementById('filterClaimedBy')?.value || '';
+  const status = document.getElementById('filterStatus')?.value || '';
+  const from = document.getElementById('filterFrom')?.value || '';
+  const to = document.getElementById('filterTo')?.value || '';
+  return items.filter(it => {
+    if (search && !((it.name || '').toLowerCase().includes(search) || (it.note || '').toLowerCase().includes(search))) return false;
+    if (sentBy && it.sentBy !== sentBy) return false;
+    if (claimedBy && it.claimedBy !== claimedBy) return false;
+    if (status === 'pending' && it.claimedBy) return false;
+    if (status === 'claimed' && !it.claimedBy) return false;
+    if (from && it.createdAt < new Date(from + 'T00:00:00').getTime()) return false;
+    if (to && it.createdAt > new Date(to + 'T23:59:59').getTime()) return false;
+    return true;
+  });
+}
+
+function clearAdminFilters() {
+  ['filterSearch', 'filterFrom', 'filterTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['filterSentBy', 'filterClaimedBy', 'filterStatus'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  renderDynamic();
+}
+
+function renderStats(filteredItems) {
+  const el = document.getElementById('statsSection');
+  if (!el) return;
+  const bySent = {}, byClaimed = {};
+  filteredItems.forEach(it => {
+    if (it.sentBy) bySent[it.sentBy] = (bySent[it.sentBy] || 0) + 1;
+    if (it.claimedBy) byClaimed[it.claimedBy] = (byClaimed[it.claimedBy] || 0) + 1;
+  });
+  const sentRows = Object.entries(bySent).sort((a, b) => b[1] - a[1]);
+  const claimedRows = Object.entries(byClaimed).sort((a, b) => b[1] - a[1]);
+  const col = (title, rows) => `
+    <div style="flex:1;min-width:220px;background:#0D1526;border-radius:10px;padding:12px 14px;">
+      <div style="font-size:12.5px;color:#7C89A6;margin-bottom:8px;font-weight:600;">${title}</div>
+      ${rows.length === 0 ? '<div class="empty small">Chưa có dữ liệu</div>' : rows.map(([name, count], i) => `
+        <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span>${i + 1}. ${name}</span><b>${count}</b>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      ${col('📣 Theo Marketing (đã gửi)', sentRows)}
+      ${col('❤️ Theo Sale (đã nhận)', claimedRows)}
+    </div>
+  `;
+}
+
+function renderSyncBanner() {
+  const el = document.getElementById('syncBanner');
+  if (!el) return;
+  let html = '';
+  if (FIREBASE_ENABLED) {
+    html += `
+      <div class="sync-banner on">
+        <div class="sync-status on"><b>✅ Đang đồng bộ nhiều máy (thời gian thực)</b>
+        <p>Marketing và Sale ở bất kỳ máy nào cũng đang thấy chung một kho dữ liệu qua Firebase.</p></div>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="sync-banner off">
+        <div class="sync-status off">
+          <b>⚠️ Chưa bật đồng bộ nhiều máy</b>
+          <p>Hiện mỗi máy đang lưu dữ liệu riêng. Cần tạo 1 project Firebase miễn phí (~5 phút, không cần thẻ) rồi dán cấu hình vào file:</p>
+          <ol>
+            <li>Vào <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> → Add project → đặt tên bất kỳ → tắt Google Analytics → Create project.</li>
+            <li>Trong project, vào mục <b>Build → Realtime Database</b> → Create Database → chọn khu vực gần VN (vd Singapore) → chọn <b>Start in test mode</b> → Enable.</li>
+            <li>Vào biểu tượng bánh răng ⚙️ → Project settings → mục "Your apps" → bấm biểu tượng <b>&lt;/&gt;</b> (Web) → đặt tên app → Register app.</li>
+            <li>Copy nguyên object <b>firebaseConfig</b> hiện ra (có apiKey, databaseURL...) và gửi lại cho mình để nhúng vào file.</li>
+          </ol>
+        </div>
+      </div>
+    `;
+  }
+  if (SHEETS_WEBHOOK_URL) {
+    html += `
+      <div class="sync-banner on">
+        <div class="sync-status on"><b>✅ Đang tự động ghi vào Google Sheet</b>
+        <p>Mỗi lần gửi/nhận data đều tự thêm hoặc cập nhật 1 dòng trong Sheet.</p></div>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="sync-banner off">
+        <div class="sync-status off">
+          <b>⚠️ Chưa bật ghi tự động vào Google Sheet</b>
+          <p>Cần tạo 1 Google Sheet + đoạn Apps Script để nhận dữ liệu (miễn phí, ~10 phút):</p>
+          <ol>
+            <li>Tạo 1 Google Sheet mới, đặt tên tuỳ ý, dòng đầu tiên gõ tiêu đề cột: <b>Mã data | Khách | Nguồn data | Người gửi | Người nhận | Giờ gửi | Giờ nhận | Trạng thái</b>.</li>
+            <li>Vào menu <b>Extensions → Apps Script</b>, xoá code mẫu, dán đoạn code mình đưa, bấm <b>Deploy → New deployment</b> → chọn loại <b>Web app</b> → Execute as: <b>Me</b>, Who has access: <b>Anyone</b> → Deploy.</li>
+            <li>Copy link "Web app URL" hiện ra, gửi lại cho mình để nhúng vào file.</li>
+          </ol>
+        </div>
+      </div>
+    `;
+  }
+  el.innerHTML = html;
+}
+
+function renderDynamic() {
+  const items = state.pool.items;
+  const pending = items.filter(i => !i.claimedBy).sort((a,b) => a.createdAt - b.createdAt);
+  const claimed = items.filter(i => i.claimedBy).sort((a,b) => b.claimedAt - a.claimedAt);
+
+  if (state.role === 'marketing') {
+    const mine = items.filter(it => it.sentBy === state.mktName);
+    const minePending = mine.filter(it => !it.claimedBy);
+    const pill = document.getElementById('pendingPill');
+    if (pill) pill.textContent = `📡 ${minePending.length} đang chờ nhận`;
+    const logList = document.getElementById('logList');
+    if (logList) {
+      logList.innerHTML = mine.length === 0 ? '<div class="empty small">Chưa có data nào.</div>' :
+        mine.slice(0,12).map(it => `
+          <div class="log-row">
+            <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
+            <span class="log-name">${it.name}${it.qrImage ? ' 📷' : ''}</span>
+            <span class="status ${it.claimedBy ? 'locked' : 'pending'}">${it.claimedBy ? `🔒 ${it.claimedBy}` : 'Đang chờ'}</span>
+            ${it.claimedBy ? (() => {
+              const n = getUnreadCount(it.id);
+              return `<button class="chat-btn ${n > 0 ? 'has-unread' : ''}" data-chat="${it.id}">💬 Trao đổi${n > 0 ? `<span class="chat-badge">${n}</span>` : ''}</button>`;
+            })() : ''}
+            <span class="log-time">${formatTime(it.createdAt)}</span>
+          </div>
+        `).join('');
+    }
+  } else if (state.role === 'sale') {
+    const mineCard = (it, badgeText) => `
+      <div class="card" style="border-color:rgba(53,208,127,0.35);">
+        <div class="card-top">
+          <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
+          <span class="time">🕐 ${formatTime(it.claimedAt)}</span>
+        </div>
+        <div class="card-body">
+          ${it.qrImage
+            ? `<img class="card-qr" src="${it.qrImage}" alt="QR khách" data-zoom-item="${it.id}" />`
+            : `<div class="card-qr" style="display:flex;align-items:center;justify-content:center;color:#556;font-size:11px;text-align:center;">Chưa có ảnh QR</div>`
+          }
+          <div class="card-info">
+            <div class="card-name">${it.name}</div>
+            ${it.note ? `<div class="card-note">${it.note}</div>` : ''}
+            <div class="card-note">Nguồn: ${it.sentBy ? `gửi bởi <b style="color:#EAF0FF;">${it.sentBy}</b>` : 'không rõ'}</div>
+            ${it.zaloLink ? `<a class="zalo-btn" href="${it.zaloLink}" target="_blank" rel="noopener">💬 Mở Zalo</a>` : ''}
+          </div>
+        </div>
+        <div style="text-align:center;color:#35D07F;font-size:12.5px;font-weight:650;margin-bottom:8px;">${badgeText}</div>
+        ${(() => {
+          const n = getUnreadCount(it.id);
+          return `<button class="chat-btn ${n > 0 ? 'has-unread' : ''}" data-chat="${it.id}" style="width:100%;">💬 Trao đổi với Marketing${n > 0 ? `<span class="chat-badge">${n}</span>` : ''}</button>`;
+        })()}
+      </div>
+    `;
+
+    const saleBody = document.getElementById('saleBody');
+    if (saleBody) {
+      saleBody.innerHTML = `
+        ${pending.length === 0 ? '<div class="empty">Chưa có data mới. Chờ Marketing gửi vào nhé.</div>' : ''}
+        <div class="grid">
+          ${pending.map(it => {
+            const isNew = Date.now() - it.createdAt < 6000;
+            return `
+              <div class="card ${isNew ? 'pulse' : ''}">
+                <div class="card-top">
+                  <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
+                  <span class="time">🕐 ${formatTime(it.createdAt)}</span>
+                </div>
+                <div class="card-body">
+                  ${it.qrImage
+                    ? `<img class="card-qr" src="${it.qrImage}" alt="QR khách" data-zoom-item="${it.id}" />`
+                    : `<div class="card-qr" style="display:flex;align-items:center;justify-content:center;color:#556;font-size:11px;text-align:center;">Chưa có ảnh QR</div>`
+                  }
+                  <div class="card-info">
+                    <div class="card-name">${it.name}</div>
+                    ${it.note ? `<div class="card-note">${it.note}</div>` : ''}
+                  </div>
+                </div>
+                <button class="heart-btn" data-claim="${it.id}">❤️ Nhận data</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ${(() => {
+          const mineClaimed = claimed.filter(it => it.claimedBy === state.saleName);
+          if (mineClaimed.length === 0) return '';
+          return `
+            <h3 class="sub-head">Đã khóa (của bạn)</h3>
+            <div class="locked-list" style="gap:10px;">
+              ${mineClaimed.slice(0,10).map(it => mineCard(it, '✔ Bạn đã nhận data này')).join('')}
+            </div>
+          `;
+        })()}
+      `;
+    }
+
+    const searchInput = document.getElementById('saleSearchInput');
+    const searchResults = document.getElementById('saleSearchResults');
+    if (searchResults) {
+      const q = (searchInput && searchInput.value.trim().toLowerCase()) || '';
+      if (!q) {
+        searchResults.innerHTML = '<div class="empty small">Gõ tên khách hoặc SĐT để tìm trong toàn bộ data bạn đã từng nhận.</div>';
+      } else {
+        const mine = items.filter(it =>
+          it.claimedBy === state.saleName &&
+          ((it.name || '').toLowerCase().includes(q) || (it.note || '').toLowerCase().includes(q))
+        ).sort((a, b) => b.claimedAt - a.claimedAt);
+        searchResults.innerHTML = mine.length === 0
+          ? '<div class="empty small">Không tìm thấy data nào khớp trong lịch sử của bạn.</div>'
+          : `<div class="locked-list" style="gap:10px;">${mine.map(it => mineCard(it, '✔ Data bạn đã nhận trước đây')).join('')}</div>`;
+      }
+    }
+  } else if (state.role === 'admin') {
+    renderSyncBanner();
+    updateFilterOptions(items);
+    const filtered = getFilteredItems(items);
+    renderStats(filtered);
+    const table = document.getElementById('adminTable');
+    if (table) {
+      table.innerHTML = `
+        <div class="table-head">
+          <span>STT</span><span>Ảnh</span><span>Mã data</span><span>Khách</span><span>Nguồn data</span><span>Người gửi</span><span>Trạng thái</span><span>Người nhận</span><span>Giờ gửi</span><span>Giờ nhận</span><span></span>
+        </div>
+        ${filtered.length === 0 ? '<div class="empty small">Không có dữ liệu khớp bộ lọc.</div>' : ''}
+        ${filtered.map((it, idx) => `
+          <div class="table-row">
+            <span class="muted">${idx + 1}</span>
+            ${qrThumb(it, 'table-thumb')}
+            <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
+            <span>${it.name}</span>
+            <span class="muted">${it.note || '—'}</span>
+            <span class="muted">${it.sentBy || '—'}</span>
+            <span class="${it.claimedBy ? 'status locked' : 'status pending'}">${it.claimedBy ? '✔ Đã khóa' : 'Đang chờ'}</span>
+            <span>${it.claimedBy || '—'}</span>
+            <span class="muted">${formatTime(it.createdAt)}</span>
+            <span class="muted">${formatTime(it.claimedAt)}</span>
+            <button class="row-delete-btn" data-delete="${it.id}" title="Xoá data này">✕</button>
+          </div>
+        `).join('')}
+      `;
+    }
+  }
+}
+
+// Realtime updates when Firebase is on; polling fallback (same-browser tabs) when it's off.
+if (dbRef) {
+  dbRef.on('value', (snap) => {
+    const val = snap.val();
+    const pool = normalizePool(val);
+    const serialized = JSON.stringify(pool);
+    if (serialized !== lastPoolSerialized) {
+      state.pool = pool;
+      lastPoolSerialized = serialized;
+      saveLocalCache(pool);
+      checkForNewItems(pool);
+      if (state.lockedRole) renderDynamic();
+    }
+  }, (err) => {
+    if (!remoteWarned) {
+      showToast('Mất kết nối kho dùng chung — kiểm tra mạng', 'warn');
+      remoteWarned = true;
+    }
+  });
+} else {
+  setInterval(async () => {
+    const fresh = loadLocalCache();
+    const serialized = JSON.stringify(fresh);
+    if (serialized !== lastPoolSerialized) {
+      state.pool = fresh;
+      lastPoolSerialized = serialized;
+      checkForNewItems(fresh);
+      if (state.lockedRole) renderDynamic();
+    }
+  }, 2000);
+  window.addEventListener('storage', (e) => {
+    if (e.key === LOCAL_POOL_CACHE_KEY) {
+      state.pool = loadLocalCache();
+      lastPoolSerialized = JSON.stringify(state.pool);
+      checkForNewItems(state.pool);
+      if (state.lockedRole) renderDynamic();
+    }
+  });
+}
+
+document.getElementById('app').addEventListener('click', async (e) => {
+  const pickBtn = e.target.closest('[data-pick]');
+  if (pickBtn) { state.gatePick = pickBtn.dataset.pick; state.gateError = ''; renderGate(); return; }
+  if (e.target.closest('#gateBackBtn')) { state.gatePick = null; state.gateError = ''; renderGate(); return; }
+  if (e.target.closest('#gateConfirmBtn')) {
+    const input = document.getElementById('gateCodeInput');
+    const val = input ? input.value : '';
+    if (val === ROLE_CODES[state.gatePick]) {
+      unlockRole(state.gatePick);
+    } else {
+      state.gateError = 'Mã không đúng, thử lại.';
+      renderGate();
+    }
+    return;
+  }
+  if (e.target.closest('#relockBtn')) { relockDevice(); return; }
+
+  const roleTab = e.target.closest('[data-role]');
+  if (roleTab) { state.role = roleTab.dataset.role; renderShell(); renderNav(); return; }
+
+  if (e.target.closest('#sendBtn')) { addItem(); return; }
+  if (e.target.closest('#clearImgBtn')) {
+    state.pendingImage = null;
+    state.pendingZaloLink = null;
+    renderDropZone();
+    return;
+  }
+  if (e.target.closest('#chooseFileBtn')) {
+    document.getElementById('fileInput').click();
+    return;
+  }
+  if (e.target.closest('#dropZone')) {
+    e.target.closest('#dropZone').focus();
+    return;
+  }
+  if (e.target.closest('#setupConfirmBtn')) {
+    const nameInput = document.getElementById('setupNameInput');
+    const pinInput = document.getElementById('setupPinInput');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const pin = pinInput ? pinInput.value.trim() : '';
+    if (!name) { showToast('Nhập tên trước đã', 'warn'); return; }
+    if (!pin) { showToast('Đặt mã PIN trước đã (để lần sau dùng lại)', 'warn'); return; }
+    const btn = document.getElementById('setupConfirmBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang kiểm tra…'; }
+    const res = await checkOrRegisterPin(name, pin);
+    if (btn) { btn.disabled = false; btn.textContent = '✔ Xác nhận'; }
+    if (!res.ok) { showToast(res.reason || 'Không xác nhận được', 'warn'); return; }
+    if (res.registered) showToast('Đã đăng ký PIN cho tên này — nhớ để dùng máy khác', 'ok');
+    setMyName(name);
+    return;
+  }
+  if (e.target.closest('#changeNameBtn')) {
+    forgetMyName();
+    return;
+  }
+  if (e.target.closest('#setupMktConfirmBtn')) {
+    const nameInput = document.getElementById('setupMktNameInput');
+    const pinInput = document.getElementById('setupMktPinInput');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const pin = pinInput ? pinInput.value.trim() : '';
+    if (!name) { showToast('Nhập tên trước đã', 'warn'); return; }
+    if (!pin) { showToast('Đặt mã PIN trước đã (để lần sau dùng lại)', 'warn'); return; }
+    const btn = document.getElementById('setupMktConfirmBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang kiểm tra…'; }
+    const res = await checkOrRegisterPin(name, pin);
+    if (btn) { btn.disabled = false; btn.textContent = '✔ Xác nhận'; }
+    if (!res.ok) { showToast(res.reason || 'Không xác nhận được', 'warn'); return; }
+    if (res.registered) showToast('Đã đăng ký PIN cho tên này — nhớ để dùng máy khác', 'ok');
+    setMktName(name);
+    return;
+  }
+  if (e.target.closest('#changeMktNameBtn')) {
+    forgetMktName();
+    return;
+  }
+  if (e.target.closest('#notifyToggleBtn')) {
+    if (state.notifyEnabled) disableNotifications(); else enableNotifications();
+    return;
+  }
+  const claimBtn = e.target.closest('[data-claim]');
+  if (claimBtn) { claim(Number(claimBtn.dataset.claim)); return; }
+  const deleteBtn = e.target.closest('[data-delete]');
+  if (deleteBtn) {
+    const id = Number(deleteBtn.dataset.delete);
+    if (confirm(`Xoá DATA #${String(id).padStart(6,'0')}?`)) deleteItem(id);
+    return;
+  }
+  const chatBtn = e.target.closest('[data-chat]');
+  if (chatBtn) {
+    const item = findItemById(Number(chatBtn.dataset.chat));
+    if (item) openChat(item);
+    return;
+  }
+  const zoomImg = e.target.closest('[data-zoom-item]');
+  if (zoomImg) {
+    const item = findItemById(Number(zoomImg.dataset.zoomItem));
+    if (item && item.qrImage) openLightbox(item.qrImage);
+    return;
+  }
+  if (e.target.id === 'lightboxOverlay') { closeLightbox(); return; }
+  if (e.target.closest('#lightboxCloseBtn')) { closeLightbox(); return; }
+  if (e.target.id === 'chatOverlay') { closeChat(); return; }
+  if (e.target.closest('#chatCloseBtn')) { closeChat(); return; }
+  if (e.target.closest('#chatSendBtn')) { sendChatMessage(); return; }
+  if (e.target.closest('#resetBtn')) {
+    if (confirm('Xoá toàn bộ dữ liệu demo?')) resetAll();
+    return;
+  }
+  if (e.target.closest('#filterClearBtn')) { clearAdminFilters(); return; }
+});
+
+document.getElementById('app').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (e.target.id === 'gateCodeInput') document.getElementById('gateConfirmBtn').click();
+  if (e.target.id === 'setupNameInput' || e.target.id === 'setupPinInput') document.getElementById('setupConfirmBtn').click();
+  if (e.target.id === 'setupMktNameInput' || e.target.id === 'setupMktPinInput') document.getElementById('setupMktConfirmBtn').click();
+  if (e.target.id === 'chatInput') { e.preventDefault(); document.getElementById('chatSendBtn').click(); }
+});
+
+document.getElementById('app').addEventListener('input', (e) => {
+  if (e.target.id === 'saleSearchInput') renderDynamic();
+  if (e.target.id === 'filterSearch') renderDynamic();
+});
+
+document.getElementById('app').addEventListener('change', (e) => {
+  if (['filterSentBy', 'filterClaimedBy', 'filterStatus', 'filterFrom', 'filterTo'].includes(e.target.id)) {
+    renderDynamic();
+  }
+});
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) handleImageFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+document.addEventListener('paste', (e) => {
+  if (state.role !== 'marketing') return;
+  const items = (e.clipboardData || window.clipboardData).items;
+  for (const it of items) {
+    if (it.type.indexOf('image') !== -1) {
+      handleImageFile(it.getAsFile());
+      break;
+    }
+  }
+});
+
+renderApp();
+if (!dbRef) {
+  loadPool().then(p => {
+    state.pool = p;
+    lastPoolSerialized = JSON.stringify(p);
+    if (state.lockedRole) renderDynamic();
+  });
+}
+</script>
+</body>
+</html>
