@@ -1069,14 +1069,7 @@ function renderSyncBanner() {
   const el = document.getElementById('syncBanner');
   if (!el) return;
   let html = '';
-  if (FIREBASE_ENABLED) {
-    html += `
-      <div class="sync-banner on">
-        <div class="sync-status on"><b>✅ Đang đồng bộ nhiều máy (thời gian thực)</b>
-        <p>Marketing và Sale ở bất kỳ máy nào cũng đang thấy chung một kho dữ liệu qua Firebase.</p></div>
-      </div>
-    `;
-  } else {
+  if (!FIREBASE_ENABLED) {
     html += `
       <div class="sync-banner off">
         <div class="sync-status off">
@@ -1093,12 +1086,7 @@ function renderSyncBanner() {
     `;
   }
   if (SHEETS_WEBHOOK_URL) {
-    html += `
-      <div class="sync-banner on">
-        <div class="sync-status on"><b>✅ Đang tự động ghi vào Google Sheet</b>
-        <p>Mỗi lần gửi/nhận data đều tự thêm hoặc cập nhật 1 dòng trong Sheet.</p></div>
-      </div>
-    `;
+    // Đã bật, không cần hiện gì thêm để đỡ tốn diện tích.
   } else {
     html += `
       <div class="sync-banner off">
@@ -1417,7 +1405,13 @@ document.getElementById('app').addEventListener('click', async (e) => {
   if (e.target.closest('#chatCloseBtn')) { closeChat(); return; }
   if (e.target.closest('#chatSendBtn')) { sendChatMessage(); return; }
   if (e.target.closest('#resetBtn')) {
-    if (confirm('Xoá toàn bộ dữ liệu demo?')) resetAll();
+    const code = prompt('Đây là hành động xoá TOÀN BỘ dữ liệu, không thể hoàn tác.\nNhập lại mã Quản trị để xác nhận:');
+    if (code === null) return;
+    if (code !== ROLE_CODES.admin) {
+      showToast('Sai mã Quản trị — huỷ thao tác xoá', 'warn');
+      return;
+    }
+    resetAll();
     return;
   }
   if (e.target.closest('#filterClearBtn')) { clearAdminFilters(); return; }
