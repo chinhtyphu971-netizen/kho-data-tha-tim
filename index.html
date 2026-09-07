@@ -245,8 +245,8 @@ function syncToSheet(item) {
         note: item.note || '',
         sentBy: item.sentBy || '',
         claimedBy: item.claimedBy || '',
-        createdAt: item.createdAt ? formatTime(item.createdAt) : '',
-        claimedAt: item.claimedAt ? formatTime(item.claimedAt) : '',
+        createdAt: item.createdAt ? formatDateTime(item.createdAt) : '',
+        claimedAt: item.claimedAt ? formatDateTime(item.claimedAt) : '',
         status: item.claimedBy ? 'Đã khóa' : 'Đang chờ',
       }),
     }).catch(() => {});
@@ -345,6 +345,14 @@ async function savePool(pool) {
 function formatTime(ts) {
   if (!ts) return '';
   return new Date(ts).toLocaleTimeString('vi-VN', { hour12: false });
+}
+
+function formatDateTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const datePart = d.toLocaleDateString('vi-VN');
+  const timePart = d.toLocaleTimeString('vi-VN', { hour12: false });
+  return `${datePart} ${timePart}`;
 }
 
 function resizeImage(dataUrl, maxDim, quality) {
