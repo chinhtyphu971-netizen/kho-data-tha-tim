@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="Kho data thả tim" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="theme-color" content="#0B1220" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
@@ -162,7 +165,10 @@
         <div class="brand-sub">Ai bấm ❤️ trước, người đó nhận — data tự khóa ngay sau đó</div>
       </div>
     </div>
-    <div id="navSlot"></div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button id="hardRefreshBtn" class="btn ghost small" title="Tải lại bản mới nhất (thay cho vuốt xuống)">🔄 Làm mới</button>
+      <div id="navSlot"></div>
+    </div>
   </header>
   <div class="toast" id="toast"></div>
   <main id="main"></main>
@@ -1479,6 +1485,12 @@ document.getElementById('app').addEventListener('click', async (e) => {
     return;
   }
   if (e.target.closest('#relockBtn')) { relockDevice(); return; }
+  if (e.target.closest('#hardRefreshBtn')) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('v', Date.now());
+    window.location.href = url.toString();
+    return;
+  }
 
   const roleTab = e.target.closest('[data-role]');
   if (roleTab) { state.role = roleTab.dataset.role; renderShell(); renderNav(); return; }
