@@ -193,6 +193,7 @@ const SALES = ['Cường', 'Bình', 'Hà', 'Minh', 'Lan'];
 const DAILY_CLAIM_LIMIT = 10;
 const NAME_KEY = 'khodata-myname-v1';
 const MKT_NAME_KEY = 'khodata-myname-mkt-v1';
+const ADMIN_NAME_KEY = 'khodata-myname-admin-v1';
 const NOTIFY_KEY = 'khodata-notify-v1';
 const CHAT_READ_KEY = 'khodata-chatread-v1';
 const ROLE_KEY = 'khodata-myrole-v1';
@@ -410,6 +411,7 @@ let state = {
   gateError: '',
   saleName: safeGet(NAME_KEY),
   mktName: safeGet(MKT_NAME_KEY),
+  adminName: safeGet(ADMIN_NAME_KEY),
   pool: normalizePool(loadLocalCache()),
   pendingImage: null,
   pendingZaloLink: null,
@@ -463,6 +465,18 @@ function setMktName(name) {
 function forgetMktName() {
   state.mktName = '';
   safeRemove(MKT_NAME_KEY);
+  renderShell();
+}
+
+function setAdminName(name) {
+  state.adminName = name;
+  safeSet(ADMIN_NAME_KEY, name);
+  renderShell();
+}
+
+function forgetAdminName() {
+  state.adminName = '';
+  safeRemove(ADMIN_NAME_KEY);
   renderShell();
 }
 
@@ -589,7 +603,7 @@ async function handleAvatarFile(file) {
   reader.onload = async (e) => {
     const resized = await resizeAvatarSquare(e.target.result, 160);
     state.pendingAvatar = resized;
-    const previewId = avatarPickContext === 'mkt' ? 'mktAvatarPreview' : 'saleAvatarPreview';
+    const previewId = `${avatarPickContext}AvatarPreview`;
     const el = document.getElementById(previewId);
     if (el && resized) {
       el.style.border = 'none';
@@ -793,7 +807,7 @@ function getUnreadCount(itemId) {
 function myCurrentName() {
   if (state.role === 'sale') return state.saleName;
   if (state.role === 'marketing') return state.mktName;
-  if (state.role === 'admin') return 'Quản trị';
+  if (state.role === 'admin') return state.adminName;
   return '';
 }
 
@@ -1349,11 +1363,36 @@ function renderShell() {
       `;
     }
   } else if (state.role === 'admin') {
+    if (!state.adminName) {
+      main.innerHTML = `
+        <section class="panel">
+          <div class="panel-head"><h2>Máy này là của Quản trị nào?</h2></div>
+          <p class="muted" style="margin-top:-6px;margin-bottom:14px;font-size:13px;">
+            Nhiều người cùng làm Quản trị — nhập tên + đặt mã PIN 1 lần để biết chính xác ai đang thao tác.
+          </p>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+            <div id="adminAvatarPreview" style="width:64px;height:64px;border-radius:50%;background:#0D1526;border:2px dashed rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;flex-shrink:0;" data-avatar-pick="admin">
+              <span style="font-size:11px;color:#7C89A6;text-align:center;">Chọn<br/>ảnh</span>
+            </div>
+            <div class="muted" style="font-size:12px;max-width:240px;">Ảnh đại diện (tuỳ chọn) — giúp mọi người dễ nhận ra bạn.</div>
+          </div>
+          <div class="form-grid">
+            <input class="input" id="setupAdminNameInput" style="max-width:200px;" placeholder="Nhập tên của bạn…" />
+            <input class="input" id="setupAdminPinInput" style="max-width:140px;" type="password" inputmode="numeric" placeholder="Mã PIN (4-6 số)" />
+            <button class="btn primary" id="setupAdminConfirmBtn">✔ Xác nhận</button>
+          </div>
+        </section>
+      `;
+      return;
+    }
     main.innerHTML = `
       <section class="panel">
         <div class="panel-head">
           <h2>Toàn bộ nhật ký</h2>
-          <button class="btn ghost" id="resetBtn">↺ Xoá dữ liệu demo</button>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="pill" id="adminNamePill">${avatarHtml(state.adminName, 18)} ${state.adminName} · <button id="changeAdminNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+            <button class="btn ghost" id="resetBtn">↺ Xoá dữ liệu demo</button>
+          </div>
         </div>
         <div id="syncBanner"></div>
         <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
@@ -1373,7 +1412,7 @@ function renderShell() {
         <p class="muted" style="font-size:11.5px;margin:-10px 0 14px;">Mặc định chỉ xem dữ liệu hôm nay — bấm "Xem tất cả thời gian" để bỏ lọc ngày.</p>
         <h3 class="sub-head">Tổng hợp theo người (theo bộ lọc hiện tại)</h3>
         <div id="statsSection" style="margin-bottom:20px;"></div>
-        <h3 class="sub-head">Quản lý mã PIN (Marketing &amp; Sale)</h3>
+        <h3 class="sub-head">Quản lý mã PIN (Marketing, Sale &amp; Quản trị)</h3>
         <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Xem PIN của từng người để đọc cho họ khi quên.</p>
         <input class="input" id="pinsSearchInput" placeholder="Tìm tên…" style="max-width:200px;margin-bottom:10px;" />
         <div id="pinsSection" style="margin-bottom:20px;"></div>
@@ -1489,11 +1528,12 @@ function renderPinsSection() {
     el.innerHTML = '<div class="empty small">Không có tên nào khớp.</div>';
     return;
   }
-  const groups = { marketing: [], sale: [], other: [] };
+  const groups = { marketing: [], sale: [], admin: [], other: [] };
   keys.forEach(k => {
     const info = pinInfo(k);
     if (info.role === 'marketing') groups.marketing.push(k);
     else if (info.role === 'sale') groups.sale.push(k);
+    else if (info.role === 'admin') groups.admin.push(k);
     else groups.other.push(k);
   });
   const renderCol = (title, list) => `
@@ -1516,6 +1556,7 @@ function renderPinsSection() {
     <div style="display:flex;gap:16px;flex-wrap:wrap;">
       ${renderCol('📣 Marketing', groups.marketing)}
       ${renderCol('❤️ Sale', groups.sale)}
+      ${renderCol('🛡️ Quản trị', groups.admin)}
     </div>
     ${groups.other.length > 0 ? `
       <div style="margin-top:14px;font-size:11.5px;color:#7C89A6;">
@@ -1885,6 +1926,30 @@ document.getElementById('app').addEventListener('click', async (e) => {
     forgetMktName();
     return;
   }
+  if (e.target.closest('#setupAdminConfirmBtn')) {
+    const nameInput = document.getElementById('setupAdminNameInput');
+    const pinInput = document.getElementById('setupAdminPinInput');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const pin = pinInput ? pinInput.value.trim() : '';
+    if (!name) { showToast('Nhập tên trước đã', 'warn'); return; }
+    if (!pin) { showToast('Đặt mã PIN trước đã (để lần sau dùng lại)', 'warn'); return; }
+    const btn = document.getElementById('setupAdminConfirmBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang kiểm tra…'; }
+    const res = await checkOrRegisterPin(name, pin, 'admin');
+    if (btn) { btn.disabled = false; btn.textContent = '✔ Xác nhận'; }
+    if (!res.ok) { showToast(res.reason || 'Không xác nhận được', 'warn'); return; }
+    if (res.registered) showToast('Đã đăng ký PIN cho tên này — nhớ để dùng máy khác', 'ok');
+    if (state.pendingAvatar && profilesRef) {
+      profilesRef.child(pinKey(name)).set(state.pendingAvatar).catch(() => {});
+      state.pendingAvatar = null;
+    }
+    setAdminName(name);
+    return;
+  }
+  if (e.target.closest('#changeAdminNameBtn')) {
+    forgetAdminName();
+    return;
+  }
   if (e.target.closest('#notifyToggleBtn')) {
     if (state.notifyEnabled) disableNotifications(); else enableNotifications();
     return;
@@ -1991,6 +2056,7 @@ document.getElementById('app').addEventListener('keydown', (e) => {
   if (e.target.id === 'gateCodeInput') document.getElementById('gateConfirmBtn').click();
   if (e.target.id === 'setupNameInput' || e.target.id === 'setupPinInput') document.getElementById('setupConfirmBtn').click();
   if (e.target.id === 'setupMktNameInput' || e.target.id === 'setupMktPinInput') document.getElementById('setupMktConfirmBtn').click();
+  if (e.target.id === 'setupAdminNameInput' || e.target.id === 'setupAdminPinInput') document.getElementById('setupAdminConfirmBtn').click();
   if (e.target.id === 'chatInput') { e.preventDefault(); document.getElementById('chatSendBtn').click(); }
 });
 
