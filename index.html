@@ -1271,6 +1271,7 @@ function renderStats(filteredItems) {
   `;
 }
 
+let pinsListOpen = false;
 function renderPinsSection() {
   const el = document.getElementById('pinsSection');
   if (!el) return;
@@ -1279,8 +1280,8 @@ function renderPinsSection() {
     return;
   }
   const q = (document.getElementById('pinsSearchInput')?.value || '').trim().toLowerCase();
-  if (!q) {
-    el.innerHTML = '<div class="empty small">Gõ tên để tìm PIN của người đó.</div>';
+  if (!pinsListOpen) {
+    el.innerHTML = '<div class="empty small">Bấm vào ô để xem danh sách, gõ tên để lọc bớt.</div>';
     return;
   }
   const keys = Object.keys(allPins).filter(k => k.includes(q)).sort();
@@ -1732,6 +1733,13 @@ document.getElementById('app').addEventListener('input', (e) => {
   if (e.target.id === 'filterSearch') renderDynamic();
   if (e.target.id === 'mktFilterSearch') renderDynamic();
   if (e.target.id === 'pinsSearchInput') renderDynamic();
+});
+
+document.getElementById('app').addEventListener('focusin', (e) => {
+  if (e.target.id === 'pinsSearchInput' && !pinsListOpen) {
+    pinsListOpen = true;
+    renderDynamic();
+  }
 });
 
 document.getElementById('app').addEventListener('change', (e) => {
