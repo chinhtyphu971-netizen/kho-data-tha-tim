@@ -258,7 +258,7 @@ function pinKey(name) {
   return name.trim().toLowerCase().replace(/[.#$\[\]\/]/g, '');
 }
 
-async function checkOrRegisterPin(name, pin) {
+async function checkOrRegisterPin(name, pin, role) {
   if (!pinsRef) return { ok: true }; // no shared store configured, skip PIN check
   const key = pinKey(name);
   if (!key) return { ok: false, reason: 'Tên không hợp lệ' };
@@ -266,11 +266,12 @@ async function checkOrRegisterPin(name, pin) {
     const snap = await pinsRef.child(key).once('value');
     const existing = snap.val();
     if (existing === null) {
-      // First time this name is used — register this PIN for it.
-      await pinsRef.child(key).set(pin);
+      // First time this name is used — register this PIN + role for it.
+      await pinsRef.child(key).set({ pin, role: role || '' });
       return { ok: true, registered: true };
     }
-    if (existing === pin) return { ok: true };
+    const existingPin = (existing && typeof existing === 'object') ? existing.pin : existing;
+    if (existingPin === pin) return { ok: true };
     return { ok: false, reason: 'Sai mã PIN cho tên này' };
   } catch (e) {
     return { ok: false, reason: 'Không kiểm tra được PIN, kiểm tra mạng rồi thử lại' };
@@ -1293,6 +1294,12 @@ function renderStats(filteredItems) {
 }
 
 let pinsListOpen = false;
+function pinInfo(k) {
+  const v = allPins[k];
+  if (v && typeof v === 'object') return { pin: v.pin, role: v.role || '' };
+  return { pin: v, role: '' }; // dữ liệu cũ trước khi có phân loại vai trò
+}
+
 function renderPinsSection() {
   const el = document.getElementById('pinsSection');
   if (!el) return;
@@ -1310,16 +1317,38 @@ function renderPinsSection() {
     el.innerHTML = '<div class="empty small">Không có tên nào khớp.</div>';
     return;
   }
-  el.innerHTML = `
-    <div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;">
-      ${keys.map(k => `
-        <div class="log-row">
-          ${avatarHtmlByKey(k, 26)}
-          <span class="log-name">${k}</span>
-          <span class="ticket" style="min-width:auto;">PIN: <b style="color:#EAF0FF;">${allPins[k]}</b></span>
-        </div>
-      `).join('')}
+  const groups = { marketing: [], sale: [], other: [] };
+  keys.forEach(k => {
+    const info = pinInfo(k);
+    if (info.role === 'marketing') groups.marketing.push(k);
+    else if (info.role === 'sale') groups.sale.push(k);
+    else groups.other.push(k);
+  });
+  const renderCol = (title, list) => `
+    <div style="flex:1;min-width:220px;background:#0D1526;border-radius:10px;padding:12px 14px;">
+      <div style="font-size:12.5px;color:#7C89A6;margin-bottom:8px;font-weight:600;">${title} (${list.length})</div>
+      <div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;">
+        ${list.length === 0 ? '<div class="empty small">Chưa có ai.</div>' : list.map((k, i) => `
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <span class="muted" style="min-width:18px;">${i + 1}.</span>
+            ${avatarHtmlByKey(k, 22)}
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k}</span>
+            <span class="ticket" style="min-width:auto;">PIN: <b style="color:#EAF0FF;">${pinInfo(k).pin}</b></span>
+          </div>
+        `).join('')}
+      </div>
     </div>
+  `;
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      ${renderCol('📣 Marketing', groups.marketing)}
+      ${renderCol('❤️ Sale', groups.sale)}
+    </div>
+    ${groups.other.length > 0 ? `
+      <div style="margin-top:14px;font-size:11.5px;color:#7C89A6;">
+        Chưa rõ vai trò (đăng ký trước khi có phân loại — ${groups.other.length} người): ${groups.other.join(', ')}
+      </div>
+    ` : ''}
   `;
 }
 
@@ -1625,7 +1654,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
     if (!pin) { showToast('Đặt mã PIN trước đã (để lần sau dùng lại)', 'warn'); return; }
     const btn = document.getElementById('setupConfirmBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Đang kiểm tra…'; }
-    const res = await checkOrRegisterPin(name, pin);
+    const res = await checkOrRegisterPin(name, pin, 'sale');
     if (btn) { btn.disabled = false; btn.textContent = '✔ Xác nhận'; }
     if (!res.ok) { showToast(res.reason || 'Không xác nhận được', 'warn'); return; }
     if (res.registered) showToast('Đã đăng ký PIN cho tên này — nhớ để dùng máy khác', 'ok');
@@ -1649,7 +1678,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
     if (!pin) { showToast('Đặt mã PIN trước đã (để lần sau dùng lại)', 'warn'); return; }
     const btn = document.getElementById('setupMktConfirmBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Đang kiểm tra…'; }
-    const res = await checkOrRegisterPin(name, pin);
+    const res = await checkOrRegisterPin(name, pin, 'marketing');
     if (btn) { btn.disabled = false; btn.textContent = '✔ Xác nhận'; }
     if (!res.ok) { showToast(res.reason || 'Không xác nhận được', 'warn'); return; }
     if (res.registered) showToast('Đã đăng ký PIN cho tên này — nhớ để dùng máy khác', 'ok');
