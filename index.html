@@ -188,6 +188,8 @@
 
 <script>
 const SALES = ['Cường', 'Bình', 'Hà', 'Minh', 'Lan'];
+// Số data tối đa mỗi Sale được nhận trong 1 ngày (tính theo ngày trên máy đang bấm). Đổi số này nếu cần.
+const DAILY_CLAIM_LIMIT = 15;
 const NAME_KEY = 'khodata-myname-v1';
 const MKT_NAME_KEY = 'khodata-myname-mkt-v1';
 const NOTIFY_KEY = 'khodata-notify-v1';
@@ -682,6 +684,15 @@ async function claim(id) {
         const idx = pool.items.findIndex(it => it.id === id);
         if (idx === -1) return pool;
         if (pool.items[idx].claimedBy) return; // đã có người khác nhận -> huỷ transaction, không ghi gì cả
+
+        const todayStr = new Date().toDateString();
+        const claimedTodayCount = pool.items.filter(it =>
+          it.claimedBy === myName && it.claimedAt && new Date(it.claimedAt).toDateString() === todayStr
+        ).length;
+        if (claimedTodayCount >= DAILY_CLAIM_LIMIT) {
+          throw new Error('DAILY_LIMIT_REACHED');
+        }
+
         const newItems = pool.items.slice();
         newItems[idx] = { ...newItems[idx], claimedBy: myName, claimedAt: Date.now() };
         return { ...pool, items: newItems };
@@ -701,7 +712,11 @@ async function claim(id) {
         showToast(`Chậm rồi — ${item.claimedBy} lấy trước`, 'warn');
       }
     } catch (e) {
-      showToast('Có lỗi khi nhận data, kiểm tra mạng rồi thử lại', 'warn');
+      if (e && e.message === 'DAILY_LIMIT_REACHED') {
+        showToast(`Bạn đã nhận đủ ${DAILY_CLAIM_LIMIT} data hôm nay — không thể nhận thêm, thử lại vào ngày mai nhé.`, 'warn');
+      } else {
+        showToast('Có lỗi khi nhận data, kiểm tra mạng rồi thử lại', 'warn');
+      }
     }
     return;
   }
@@ -715,6 +730,14 @@ async function claim(id) {
     lastPoolSerialized = JSON.stringify(current);
     renderDynamic();
     showToast(`Chậm rồi — ${current.items[idx].claimedBy} lấy trước`, 'warn');
+    return;
+  }
+  const todayStrLocal = new Date().toDateString();
+  const claimedTodayLocal = current.items.filter(it =>
+    it.claimedBy === myName && it.claimedAt && new Date(it.claimedAt).toDateString() === todayStrLocal
+  ).length;
+  if (claimedTodayLocal >= DAILY_CLAIM_LIMIT) {
+    showToast(`Bạn đã nhận đủ ${DAILY_CLAIM_LIMIT} data hôm nay — không thể nhận thêm, thử lại vào ngày mai nhé.`, 'warn');
     return;
   }
   current.items[idx] = { ...current.items[idx], claimedBy: myName, claimedAt: Date.now() };
