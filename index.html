@@ -1725,7 +1725,10 @@ function renderDynamic() {
             <span class="muted">${formatTime(it.createdAt)}</span>
             <span class="muted">${formatTime(it.claimedAt)}</span>
             <div style="display:flex;gap:4px;">
-              ${it.claimedBy ? `<button class="chat-btn" style="padding:6px 8px;" data-chat="${it.id}" title="Xem trao đổi">💬</button>` : ''}
+              ${it.claimedBy ? (() => {
+                const n = getUnreadCount(it.id);
+                return `<button class="chat-btn ${n > 0 ? 'has-unread' : ''}" style="padding:6px 8px;" data-chat="${it.id}" title="Xem trao đổi">💬${n > 0 ? `<span class="chat-badge">${n}</span>` : ''}</button>`;
+              })() : ''}
               <button class="row-delete-btn" data-delete="${it.id}" title="Xoá data này">✕</button>
             </div>
           </div>
