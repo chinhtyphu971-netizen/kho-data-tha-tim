@@ -1909,7 +1909,17 @@ document.getElementById('app').addEventListener('click', async (e) => {
   }
 
   const roleTab = e.target.closest('[data-role]');
-  if (roleTab) { state.role = roleTab.dataset.role; renderShell(); renderNav(); return; }
+  if (roleTab) {
+    state.role = roleTab.dataset.role;
+    // Admin dùng luôn tên/PIN đã đăng ký để có đủ chức năng ngay ở tab khác, khỏi đăng ký lại.
+    if (state.lockedRole === 'admin' && state.adminName) {
+      if (state.role === 'marketing' && !state.mktName) state.mktName = state.adminName;
+      if (state.role === 'sale' && !state.saleName) state.saleName = state.adminName;
+    }
+    renderShell();
+    renderNav();
+    return;
+  }
 
   if (e.target.closest('#sendBtn')) { addItem(); return; }
   if (e.target.closest('#clearImgBtn')) {
