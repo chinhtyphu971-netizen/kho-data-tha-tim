@@ -226,6 +226,7 @@ let chatsRef = null;
 let profilesRef = null;
 let claimsRef = null;
 let readsRef = null;
+let versionRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -235,6 +236,7 @@ if (FIREBASE_ENABLED) {
     profilesRef = firebase.database().ref('profiles');
     claimsRef = firebase.database().ref('claims');
     readsRef = firebase.database().ref('reads');
+    versionRef = firebase.database().ref('appVersion');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -1444,6 +1446,7 @@ function renderShell() {
           <h2>Toàn bộ nhật ký</h2>
           <div style="display:flex;align-items:center;gap:10px;">
             <span class="pill" id="adminNamePill">${avatarHtml(state.adminName, 18)} ${state.adminName} · <button id="changeAdminNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+            <button class="btn ghost small" id="forceReloadAllBtn" title="Bắt tất cả máy đang mở app tự tải lại bản mới nhất">📢 Làm mới cho tất cả</button>
             <button class="btn ghost" id="resetBtn">↺ Xoá dữ liệu demo</button>
           </div>
         </div>
@@ -2067,6 +2070,14 @@ document.getElementById('app').addEventListener('click', async (e) => {
     resetAll();
     return;
   }
+  if (e.target.closest('#forceReloadAllBtn')) {
+    if (!versionRef) { showToast('Cần bật kho dùng chung (Firebase)', 'warn'); return; }
+    if (!confirm('Bắt tất cả máy đang mở app tự động tải lại bản mới nhất ngay bây giờ?')) return;
+    versionRef.set(Date.now())
+      .then(() => showToast('Đã gửi lệnh — mọi người đang mở app sẽ tự tải lại trong giây lát', 'ok'))
+      .catch(() => showToast('Gửi lệnh thất bại, kiểm tra mạng', 'warn'));
+    return;
+  }
   if (e.target.closest('#filterClearBtn')) { clearAdminFilters(); return; }
   if (e.target.closest('#bulkAssignBtn')) { bulkAssignRole(); return; }
   const pagePrev = e.target.closest('[data-page-prev]');
@@ -2185,6 +2196,19 @@ if (!dbRef) {
     state.pool = p;
     lastPoolSerialized = JSON.stringify(p);
     if (state.lockedRole) renderDynamic();
+  });
+}
+
+let knownAppVersion = null;
+if (versionRef) {
+  versionRef.on('value', (snap) => {
+    const v = snap.val();
+    if (knownAppVersion === null) { knownAppVersion = v; return; } // lần đọc đầu — chỉ ghi nhớ, không tải lại
+    if (v && v !== knownAppVersion) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('v', v);
+      window.location.href = url.toString();
+    }
   });
 }
 
