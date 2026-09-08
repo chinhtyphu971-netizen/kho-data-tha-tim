@@ -225,6 +225,7 @@ let pinsRef = null;
 let chatsRef = null;
 let profilesRef = null;
 let claimsRef = null;
+let readsRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -233,6 +234,7 @@ if (FIREBASE_ENABLED) {
     chatsRef = firebase.database().ref('chats');
     profilesRef = firebase.database().ref('profiles');
     claimsRef = firebase.database().ref('claims');
+    readsRef = firebase.database().ref('reads');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -475,6 +477,7 @@ function relockDevice() {
 function setMyName(name) {
   state.saleName = name;
   safeSet(NAME_KEY, name);
+  attachReadsSyncForCurrentUser();
   renderShell();
 }
 
@@ -487,6 +490,7 @@ function forgetMyName() {
 function setMktName(name) {
   state.mktName = name;
   safeSet(MKT_NAME_KEY, name);
+  attachReadsSyncForCurrentUser();
   renderShell();
 }
 
@@ -499,6 +503,7 @@ function forgetMktName() {
 function setAdminName(name) {
   state.adminName = name;
   safeSet(ADMIN_NAME_KEY, name);
+  attachReadsSyncForCurrentUser();
   renderShell();
 }
 
@@ -811,9 +816,38 @@ function saveReadMap(map) {
 let chatReadMap = loadReadMap();
 let allChatsRaw = {};
 
+let currentReadsListenerKey = null;
+
 function markChatRead(itemId) {
-  chatReadMap[itemId] = Date.now();
+  const ts = Date.now();
+  chatReadMap[itemId] = ts;
   saveReadMap(chatReadMap);
+  const myKey = pinKey(myCurrentName() || '');
+  if (readsRef && myKey) {
+    readsRef.child(myKey).child(String(itemId)).set(ts).catch(() => {});
+  }
+}
+
+function attachReadsSyncForCurrentUser() {
+  if (!readsRef) return;
+  const myKey = pinKey(myCurrentName() || '');
+  if (!myKey || myKey === currentReadsListenerKey) return;
+  if (currentReadsListenerKey) readsRef.child(currentReadsListenerKey).off();
+  currentReadsListenerKey = myKey;
+  readsRef.child(myKey).on('value', (snap) => {
+    const remote = snap.val() || {};
+    let changed = false;
+    Object.keys(remote).forEach(k => {
+      if (!chatReadMap[k] || remote[k] > chatReadMap[k]) {
+        chatReadMap[k] = remote[k];
+        changed = true;
+      }
+    });
+    if (changed) {
+      saveReadMap(chatReadMap);
+      if (state.lockedRole) renderDynamic();
+    }
+  });
 }
 
 function getUnreadCount(itemId) {
@@ -2145,6 +2179,7 @@ document.addEventListener('paste', (e) => {
 });
 
 renderApp();
+attachReadsSyncForCurrentUser();
 if (!dbRef) {
   loadPool().then(p => {
     state.pool = p;
