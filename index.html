@@ -224,6 +224,7 @@ let dbRef = null;
 let pinsRef = null;
 let chatsRef = null;
 let profilesRef = null;
+let claimsRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -231,6 +232,7 @@ if (FIREBASE_ENABLED) {
     pinsRef = firebase.database().ref('pins');
     chatsRef = firebase.database().ref('chats');
     profilesRef = firebase.database().ref('profiles');
+    claimsRef = firebase.database().ref('claims');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -294,6 +296,32 @@ function normalizePool(pool) {
     nextId: typeof pool.nextId === 'number' ? pool.nextId : defaultPool().nextId,
     items: Array.isArray(pool.items) ? pool.items : [],
   };
+}
+
+// Ai đã nhận data nào được lưu ở 1 nhánh Firebase riêng ("claims"), được Rules
+// bảo vệ để chỉ ghi được đúng 1 lần — dù máy nào chạy code cũ vẫn không lách qua được.
+let rawPool = defaultPool();
+let allClaims = {};
+
+function mergePoolWithClaims(pool, claims) {
+  const items = (pool.items || []).map(it => {
+    const c = claims[it.id];
+    if (c) return { ...it, claimedBy: c.claimedBy || null, claimedAt: c.claimedAt || null };
+    return it; // Data cũ (trước khi có nhánh "claims" riêng) — giữ nguyên claimedBy sẵn có.
+  });
+  return { nextId: pool.nextId, items };
+}
+
+function recomputeMergedPool() {
+  const merged = mergePoolWithClaims(rawPool, allClaims);
+  const serialized = JSON.stringify(merged);
+  if (serialized !== lastPoolSerialized) {
+    state.pool = merged;
+    lastPoolSerialized = serialized;
+    saveLocalCache(merged);
+    checkForNewItems(merged);
+    if (state.lockedRole) renderDynamic();
+  }
 }
 
 function safeGet(key) { try { return localStorage.getItem(key) || ''; } catch (e) { return ''; } }
@@ -690,46 +718,35 @@ async function claim(id) {
   if (!state.saleName) { showToast('Chọn tên Sale trước khi bấm ❤️', 'warn'); return; }
   const myName = state.saleName;
 
-  if (dbRef) {
-    // Dùng transaction thật của Firebase để tránh 2 người cùng bấm gần lúc nhau
-    // ghi đè lẫn nhau (race condition) — server sẽ tự chọn đúng đúng người bấm trước.
+  if (dbRef && claimsRef) {
+    const todayStr = new Date().toDateString();
+    const claimedTodayCount = (state.pool.items || []).filter(it =>
+      it.claimedBy === myName && it.claimedAt && new Date(it.claimedAt).toDateString() === todayStr
+    ).length;
+    if (claimedTodayCount >= DAILY_CLAIM_LIMIT) {
+      showToast(`Bạn đã nhận đủ ${DAILY_CLAIM_LIMIT} data hôm nay — không thể nhận thêm, thử lại vào ngày mai nhé.`, 'warn');
+      return;
+    }
+    const claimedAt = Date.now();
     try {
-      const result = await dbRef.transaction((pool) => {
-        if (!pool || !Array.isArray(pool.items)) return pool;
-        const idx = pool.items.findIndex(it => it.id === id);
-        if (idx === -1) return pool;
-        if (pool.items[idx].claimedBy) return; // đã có người khác nhận -> huỷ transaction, không ghi gì cả
-
-        const todayStr = new Date().toDateString();
-        const claimedTodayCount = pool.items.filter(it =>
-          it.claimedBy === myName && it.claimedAt && new Date(it.claimedAt).toDateString() === todayStr
-        ).length;
-        if (claimedTodayCount >= DAILY_CLAIM_LIMIT) {
-          throw new Error('DAILY_LIMIT_REACHED');
-        }
-
-        const newItems = pool.items.slice();
-        newItems[idx] = { ...newItems[idx], claimedBy: myName, claimedAt: Date.now() };
-        return { ...pool, items: newItems };
-      });
-      const val = result && result.snapshot ? result.snapshot.val() : null;
-      const pool = normalizePool(val);
-      state.pool = pool;
-      lastPoolSerialized = JSON.stringify(pool);
-      saveLocalCache(pool);
-      renderDynamic();
-      const item = pool.items.find(it => it.id === id);
-      if (!item) return;
-      if (item.claimedBy === myName) {
-        syncToSheet(item);
-        showToast(`Đã khóa DATA #${String(id).padStart(6,'0')} cho ${myName}`, 'ok');
-      } else {
-        showToast(`Chậm rồi — ${item.claimedBy} lấy trước`, 'warn');
-      }
+      // Ghi thẳng vào nhánh "claims" — Firebase Rules chỉ cho ghi nếu ô này CHƯA từng
+      // có ai nhận (xem hướng dẫn Rules). Máy nào chạy code cũ cũng không lách được,
+      // vì server tự chặn, không phụ thuộc vào việc client có kiểm tra đúng hay không.
+      await claimsRef.child(String(id)).set({ claimedBy: myName, claimedAt });
+      showToast(`Đã khóa DATA #${String(id).padStart(6,'0')} cho ${myName}`, 'ok');
+      const baseItem = rawPool.items.find(it => it.id === id);
+      if (baseItem) syncToSheet({ ...baseItem, claimedBy: myName, claimedAt });
     } catch (e) {
-      if (e && e.message === 'DAILY_LIMIT_REACHED') {
-        showToast(`Bạn đã nhận đủ ${DAILY_CLAIM_LIMIT} data hôm nay — không thể nhận thêm, thử lại vào ngày mai nhé.`, 'warn');
-      } else {
+      // Bị server từ chối (đã có người nhận trước) hoặc lỗi mạng — đọc lại xem ai đã nhận.
+      try {
+        const snap = await claimsRef.child(String(id)).once('value');
+        const existing = snap.val();
+        if (existing && existing.claimedBy) {
+          showToast(`Chậm rồi — ${existing.claimedBy} lấy trước`, 'warn');
+        } else {
+          showToast('Có lỗi khi nhận data, kiểm tra mạng rồi thử lại', 'warn');
+        }
+      } catch (e2) {
         showToast('Có lỗi khi nhận data, kiểm tra mạng rồi thử lại', 'warn');
       }
     }
@@ -767,6 +784,7 @@ async function claim(id) {
 async function resetAll() {
   const fresh = defaultPool();
   await savePool(fresh);
+  if (claimsRef) claimsRef.remove().catch(() => {});
   state.pool = fresh;
   lastPoolSerialized = JSON.stringify(fresh);
   renderDynamic();
@@ -777,6 +795,7 @@ async function deleteItem(id) {
   const current = await loadPool();
   const next = { nextId: current.nextId, items: current.items.filter(it => it.id !== id) };
   await savePool(next);
+  if (claimsRef) claimsRef.child(String(id)).remove().catch(() => {});
   state.pool = next;
   lastPoolSerialized = JSON.stringify(next);
   renderDynamic();
@@ -1784,22 +1803,20 @@ function renderDynamic() {
 // Realtime updates when Firebase is on; polling fallback (same-browser tabs) when it's off.
 if (dbRef) {
   dbRef.on('value', (snap) => {
-    const val = snap.val();
-    const pool = normalizePool(val);
-    const serialized = JSON.stringify(pool);
-    if (serialized !== lastPoolSerialized) {
-      state.pool = pool;
-      lastPoolSerialized = serialized;
-      saveLocalCache(pool);
-      checkForNewItems(pool);
-      if (state.lockedRole) renderDynamic();
-    }
+    rawPool = normalizePool(snap.val());
+    recomputeMergedPool();
   }, (err) => {
     if (!remoteWarned) {
       showToast('Mất kết nối kho dùng chung — kiểm tra mạng', 'warn');
       remoteWarned = true;
     }
   });
+  if (claimsRef) {
+    claimsRef.on('value', (snap) => {
+      allClaims = snap.val() || {};
+      recomputeMergedPool();
+    });
+  }
 } else {
   setInterval(async () => {
     const fresh = loadLocalCache();
