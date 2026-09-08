@@ -2030,8 +2030,18 @@ document.getElementById('chatImageInput').addEventListener('change', (e) => {
 });
 
 document.addEventListener('paste', (e) => {
-  if (state.role !== 'marketing') return;
   const items = (e.clipboardData || window.clipboardData).items;
+  if (state.chatItem) {
+    for (const it of items) {
+      if (it.type.indexOf('image') !== -1) {
+        sendChatImage(it.getAsFile());
+        e.preventDefault();
+        break;
+      }
+    }
+    return;
+  }
+  if (state.role !== 'marketing') return;
   for (const it of items) {
     if (it.type.indexOf('image') !== -1) {
       handleImageFile(it.getAsFile());
