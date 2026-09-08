@@ -906,6 +906,18 @@ function closeLightbox() {
   document.getElementById('lightboxRoot').innerHTML = '';
 }
 
+function copyToClipboard(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showToast('Đã copy: ' + text, 'ok')).catch(() => showToast('Copy thất bại', 'warn'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast('Đã copy: ' + text, 'ok'); } catch (e) { showToast('Copy thất bại', 'warn'); }
+    document.body.removeChild(ta);
+  }
+}
+
 function findItemById(id) {
   return (state.pool.items || []).find(it => it.id === id) || null;
 }
@@ -1370,6 +1382,7 @@ function renderPinsSection() {
             ${avatarHtmlByKey(k, 22)}
             <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k}</span>
             <span class="ticket" style="min-width:auto;">PIN: <b class="pin-mask" data-toggle-pin style="color:#EAF0FF;"><span class="pin-dots">••••••</span><span class="pin-real">${pinInfo(k).pin}</span></b></span>
+            <button class="copy-btn" data-copy-text="${pinInfo(k).pin}" title="Copy PIN">📋</button>
           </div>
         `).join('')}
       </div>
@@ -1764,17 +1777,12 @@ document.getElementById('app').addEventListener('click', async (e) => {
   const copyBtn = e.target.closest('[data-copy-item]');
   if (copyBtn) {
     const item = findItemById(Number(copyBtn.dataset.copyItem));
-    if (item) {
-      const text = item.name || '';
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => showToast('Đã copy: ' + text, 'ok')).catch(() => showToast('Copy thất bại', 'warn'));
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = text; document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); showToast('Đã copy: ' + text, 'ok'); } catch (e) { showToast('Copy thất bại', 'warn'); }
-        document.body.removeChild(ta);
-      }
-    }
+    if (item) copyToClipboard(item.name || '');
+    return;
+  }
+  const copyTextBtn = e.target.closest('[data-copy-text]');
+  if (copyTextBtn) {
+    copyToClipboard(copyTextBtn.dataset.copyText || '');
     return;
   }
   if (e.target.id === 'lightboxOverlay') { closeLightbox(); return; }
