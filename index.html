@@ -54,7 +54,7 @@
     width: 160px; height: 160px; border: 2px dashed rgba(255,255,255,0.16); border-radius: 12px;
     display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px;
     background: #0D1526; cursor: pointer; text-align: center; padding: 10px; color: #7C89A6; font-size: 12px;
-    flex-shrink: 0; position: relative; overflow: hidden;
+    flex-shrink: 0; position: relative; overflow: hidden; caret-color: transparent; outline: none; -webkit-user-select: text; user-select: text;
   }
   .drop-zone.has-image { border-style: solid; border-color: rgba(53,208,127,0.4); }
   .drop-zone img { width: 100%; height: 100%; object-fit: cover; position: absolute; top:0; left:0; border-radius: 10px; }
@@ -1369,8 +1369,7 @@ function renderShell() {
           </div>
         </div>
         <div class="form-grid">
-          <div class="drop-zone" id="dropZone" tabindex="0"></div>
-          <div id="pasteProxy" contenteditable="true" inputmode="none" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;pointer-events:none;"></div>
+          <div class="drop-zone" id="dropZone" tabindex="0" contenteditable="true" inputmode="none"></div>
           <div class="form-fields">
             <input class="input" id="nameInput" placeholder="Tên, SĐT hoặc link Facebook khách" />
             <input class="input" id="noteInput" placeholder="Nguồn data (tuỳ chọn)" />
@@ -1967,14 +1966,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
     return;
   }
   if (e.target.closest('#dropZone')) {
-    const proxy = document.getElementById('pasteProxy');
-    if (proxy) {
-      proxy.style.pointerEvents = 'auto';
-      proxy.focus();
-      setTimeout(() => { proxy.style.pointerEvents = 'none'; }, 50);
-    } else {
-      e.target.closest('#dropZone').focus();
-    }
+    e.target.closest('#dropZone').focus();
     return;
   }
   if (e.target.closest('#setupConfirmBtn')) {
@@ -2230,8 +2222,6 @@ document.addEventListener('paste', (e) => {
     if (it.type.indexOf('image') !== -1) {
       handleImageFile(it.getAsFile());
       e.preventDefault();
-      const proxy = document.getElementById('pasteProxy');
-      if (proxy) setTimeout(() => { proxy.innerHTML = ''; }, 0);
       break;
     }
   }
