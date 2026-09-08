@@ -970,6 +970,14 @@ function copyToClipboard(text) {
   }
 }
 
+function todayIsoDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function paginate(items, page, pageSize) {
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const clampedPage = Math.min(Math.max(1, page), totalPages);
@@ -1323,11 +1331,12 @@ function renderShell() {
             <option value="pending">Đang chờ</option>
             <option value="claimed">Đã khóa</option>
           </select>
-          <input class="input" type="date" id="filterFrom" style="max-width:145px;" />
+          <input class="input" type="date" id="filterFrom" value="${todayIsoDate()}" style="max-width:145px;" />
           <span class="muted" style="font-size:12px;">đến</span>
-          <input class="input" type="date" id="filterTo" style="max-width:145px;" />
-          <button class="btn ghost small" id="filterClearBtn">Xoá lọc</button>
+          <input class="input" type="date" id="filterTo" value="${todayIsoDate()}" style="max-width:145px;" />
+          <button class="btn ghost small" id="filterClearBtn">Xem tất cả thời gian</button>
         </div>
+        <p class="muted" style="font-size:11.5px;margin:-10px 0 14px;">Mặc định chỉ xem dữ liệu hôm nay — bấm "Xem tất cả thời gian" để bỏ lọc ngày.</p>
         <h3 class="sub-head">Tổng hợp theo người (theo bộ lọc hiện tại)</h3>
         <div id="statsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Quản lý mã PIN (Marketing &amp; Sale)</h3>
