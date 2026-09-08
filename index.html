@@ -185,6 +185,7 @@
 </div>
 <input type="file" id="fileInput" accept="image/*" style="display:none" />
 <input type="file" id="avatarFileInput" accept="image/*" style="display:none" />
+<input type="file" id="chatImageInput" accept="image/*" style="display:none" />
 
 <script>
 const SALES = ['Cường', 'Bình', 'Hà', 'Minh', 'Lan'];
@@ -1064,6 +1065,32 @@ async function sendChatMessage() {
   }
 }
 
+async function sendChatImage(file) {
+  if (!file || !file.type.startsWith('image/') || !state.chatItem || !chatsRef) return;
+  const me = myCurrentName();
+  if (!me) { showToast('Cần có tên để nhắn tin', 'warn'); return; }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const resized = await resizeImage(e.target.result, 640, 0.7);
+    if (!resized) { showToast('Không đọc được ảnh, thử lại', 'warn'); return; }
+    const input = document.getElementById('chatInput');
+    const caption = input ? input.value.trim() : '';
+    try {
+      await chatsRef.child(String(state.chatItem.id)).push({
+        sender: me,
+        role: state.role,
+        image: resized,
+        text: caption || '',
+        ts: Date.now(),
+      });
+      if (input) input.value = '';
+    } catch (err) {
+      showToast('Gửi ảnh thất bại, kiểm tra mạng', 'warn');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 function renderChatModal() {
   const root = document.getElementById('chatModalRoot');
   if (!state.chatItem) { root.innerHTML = ''; return; }
@@ -1100,18 +1127,20 @@ function renderChatModal() {
         <div class="chat-messages" id="chatMessagesList">
           ${state.chatMessages.length === 0
             ? '<div class="empty small">Chưa có tin nhắn nào. Gõ gì đó bên dưới để bắt đầu.</div>'
-            : state.chatMessages.map(m => `
+            : state.chatMessages.map((m, mi) => `
                 <div style="display:flex;gap:8px;align-items:flex-end;${m.sender === me ? 'flex-direction:row-reverse;' : ''}">
                   ${avatarHtml(m.sender, 24)}
                   <div class="chat-msg ${m.sender === me ? 'mine' : 'theirs'}">
                     <div class="who">${m.sender === me ? 'Bạn' : m.sender} · ${formatTime(m.ts)}</div>
-                    ${m.text}
+                    ${m.image ? `<img src="${m.image}" alt="Ảnh" data-zoom-chat-msg="${mi}" style="max-width:180px;border-radius:8px;display:block;cursor:zoom-in;margin-top:2px;" />` : ''}
+                    ${m.text ? `<div style="${m.image ? 'margin-top:6px;' : ''}">${m.text}</div>` : ''}
                   </div>
                 </div>
               `).join('')
           }
         </div>
         <div class="chat-input-row">
+          <button class="btn ghost" id="chatImageBtn" title="Gửi ảnh">🖼️</button>
           <input class="input" id="chatInput" placeholder="Nhắn gì đó…" />
           <button class="btn primary" id="chatSendBtn">Gửi</button>
         </div>
@@ -1893,6 +1922,14 @@ document.getElementById('app').addEventListener('click', async (e) => {
   if (e.target.id === 'chatOverlay') { closeChat(); return; }
   if (e.target.closest('#chatCloseBtn')) { closeChat(); return; }
   if (e.target.closest('#chatSendBtn')) { sendChatMessage(); return; }
+  if (e.target.closest('#chatImageBtn')) { document.getElementById('chatImageInput').click(); return; }
+  const zoomChatMsg = e.target.closest('[data-zoom-chat-msg]');
+  if (zoomChatMsg) {
+    const mi = Number(zoomChatMsg.dataset.zoomChatMsg);
+    const msg = state.chatMessages[mi];
+    if (msg && msg.image) openLightbox(msg.image);
+    return;
+  }
   if (e.target.closest('#resetBtn')) {
     const code = prompt('Đây là hành động xoá TOÀN BỘ dữ liệu, không thể hoàn tác.\nNhập lại mã Quản trị để xác nhận:');
     if (code === null) return;
@@ -1984,6 +2021,11 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 
 document.getElementById('avatarFileInput').addEventListener('change', (e) => {
   if (e.target.files && e.target.files[0]) handleAvatarFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+document.getElementById('chatImageInput').addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) sendChatImage(e.target.files[0]);
   e.target.value = '';
 });
 
