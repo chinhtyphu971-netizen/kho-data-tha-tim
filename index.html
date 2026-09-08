@@ -600,23 +600,35 @@ async function addItem() {
   if (!name.trim()) { showToast('Nhập tên khách trước đã', 'warn'); return; }
   const sendBtn = document.getElementById('sendBtn');
   if (sendBtn) sendBtn.disabled = true;
-  const current = await loadPool();
-  const id = current.nextId;
-  const localItem = {
-    id, name: name.trim(), note: note.trim(), createdAt: Date.now(),
-    claimedBy: null, claimedAt: null, qrImage: state.pendingImage || null,
-    sentBy: state.mktName || '', zaloLink: state.pendingZaloLink || null,
-  };
-  const nextLocal = { nextId: id + 1, items: [localItem, ...current.items] };
 
+  const qrImage = state.pendingImage || null;
+  const zaloLink = state.pendingZaloLink || null;
+  const sentBy = state.mktName || '';
+  const nameVal = name.trim();
+  const noteVal = note.trim();
+
+  let newItem = null;
   let saveOk = true;
+
   if (dbRef) {
-    // Dùng giờ của máy chủ Firebase cho createdAt, tránh lệch giờ do đồng hồ từng máy khác nhau.
-    const itemForServer = { ...localItem, createdAt: firebase.database.ServerValue.TIMESTAMP };
-    const nextForServer = { nextId: id + 1, items: [itemForServer, ...current.items] };
-    saveLocalCache(nextLocal);
+    // Dùng transaction để cấp mã số (id) an toàn tuyệt đối — 2 Marketing gửi
+    // cùng lúc sẽ không bao giờ bị trùng mã, vì Firebase tự tuần tự hoá việc này.
     try {
-      await dbRef.set(nextForServer);
+      const result = await dbRef.transaction((pool) => {
+        const base = (pool && Array.isArray(pool.items)) ? pool : defaultPool();
+        const id = typeof base.nextId === 'number' ? base.nextId : defaultPool().nextId;
+        const item = {
+          id, name: nameVal, note: noteVal, createdAt: Date.now(),
+          claimedBy: null, claimedAt: null, qrImage, sentBy, zaloLink,
+        };
+        return { nextId: id + 1, items: [item, ...base.items] };
+      });
+      const val = result && result.snapshot ? result.snapshot.val() : null;
+      const pool = normalizePool(val);
+      state.pool = pool;
+      lastPoolSerialized = JSON.stringify(pool);
+      saveLocalCache(pool);
+      newItem = pool.items[0];
       remoteWarned = false;
     } catch (e) {
       saveOk = false;
@@ -626,21 +638,31 @@ async function addItem() {
       }
     }
   } else {
+    const current = await loadPool();
+    const id = current.nextId;
+    newItem = {
+      id, name: nameVal, note: noteVal, createdAt: Date.now(),
+      claimedBy: null, claimedAt: null, qrImage, sentBy, zaloLink,
+    };
+    const nextLocal = { nextId: id + 1, items: [newItem, ...current.items] };
     saveOk = await savePool(nextLocal);
+    if (saveOk) {
+      state.pool = nextLocal;
+      lastPoolSerialized = JSON.stringify(nextLocal);
+    }
   }
-  if (!saveOk) { if (sendBtn) sendBtn.disabled = false; return; }
 
-  state.pool = nextLocal;
-  lastPoolSerialized = JSON.stringify(nextLocal);
+  if (sendBtn) sendBtn.disabled = false;
+  if (!saveOk || !newItem) return;
+
   state.pendingImage = null;
   state.pendingZaloLink = null;
   if (nameInput) nameInput.value = '';
   if (noteInput) noteInput.value = '';
-  if (sendBtn) sendBtn.disabled = false;
   renderDropZone();
   renderDynamic();
-  syncToSheet(localItem);
-  showToast(`Đã gửi DATA #${String(id).padStart(6,'0')}`, 'ok');
+  syncToSheet(newItem);
+  showToast(`Đã gửi DATA #${String(newItem.id).padStart(6,'0')}`, 'ok');
 }
 
 async function claim(id) {
