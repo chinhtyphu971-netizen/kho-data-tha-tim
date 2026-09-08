@@ -1358,11 +1358,12 @@ function renderShell() {
             <option value="pending">Đang chờ</option>
             <option value="claimed">Đã khóa</option>
           </select>
-          <input class="input" type="date" id="mktFilterFrom" style="max-width:145px;" />
+          <input class="input" type="date" id="mktFilterFrom" value="${todayIsoDate()}" style="max-width:145px;" />
           <span class="muted" style="font-size:12px;">đến</span>
-          <input class="input" type="date" id="mktFilterTo" style="max-width:145px;" />
-          <button class="btn ghost small" id="mktFilterClearBtn">Xoá lọc</button>
+          <input class="input" type="date" id="mktFilterTo" value="${todayIsoDate()}" style="max-width:145px;" />
+          <button class="btn ghost small" id="mktFilterClearBtn">Xem tất cả thời gian</button>
         </div>
+        <p class="muted" style="font-size:11.5px;margin:-10px 0 14px;">Mặc định chỉ xem data đã gửi hôm nay — bấm "Xem tất cả thời gian" để bỏ lọc ngày.</p>
         <div class="log-list" id="logList"></div>
         <div id="mktPagination"></div>
       </section>
