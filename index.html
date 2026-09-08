@@ -616,6 +616,42 @@ async function addItem() {
 
 async function claim(id) {
   if (!state.saleName) { showToast('Chọn tên Sale trước khi bấm ❤️', 'warn'); return; }
+  const myName = state.saleName;
+
+  if (dbRef) {
+    // Dùng transaction thật của Firebase để tránh 2 người cùng bấm gần lúc nhau
+    // ghi đè lẫn nhau (race condition) — server sẽ tự chọn đúng đúng người bấm trước.
+    try {
+      const result = await dbRef.transaction((pool) => {
+        if (!pool || !Array.isArray(pool.items)) return pool;
+        const idx = pool.items.findIndex(it => it.id === id);
+        if (idx === -1) return pool;
+        if (pool.items[idx].claimedBy) return; // đã có người khác nhận -> huỷ transaction, không ghi gì cả
+        const newItems = pool.items.slice();
+        newItems[idx] = { ...newItems[idx], claimedBy: myName, claimedAt: Date.now() };
+        return { ...pool, items: newItems };
+      });
+      const val = result && result.snapshot ? result.snapshot.val() : null;
+      const pool = normalizePool(val);
+      state.pool = pool;
+      lastPoolSerialized = JSON.stringify(pool);
+      saveLocalCache(pool);
+      renderDynamic();
+      const item = pool.items.find(it => it.id === id);
+      if (!item) return;
+      if (item.claimedBy === myName) {
+        syncToSheet(item);
+        showToast(`Đã khóa DATA #${String(id).padStart(6,'0')} cho ${myName}`, 'ok');
+      } else {
+        showToast(`Chậm rồi — ${item.claimedBy} lấy trước`, 'warn');
+      }
+    } catch (e) {
+      showToast('Có lỗi khi nhận data, kiểm tra mạng rồi thử lại', 'warn');
+    }
+    return;
+  }
+
+  // Không có Firebase (chỉ chạy local) — giữ cách cũ, không có tranh chấp nhiều máy.
   const current = await loadPool();
   const idx = current.items.findIndex(it => it.id === id);
   if (idx === -1) return;
@@ -626,13 +662,13 @@ async function claim(id) {
     showToast(`Chậm rồi — ${current.items[idx].claimedBy} lấy trước`, 'warn');
     return;
   }
-  current.items[idx] = { ...current.items[idx], claimedBy: state.saleName, claimedAt: Date.now() };
+  current.items[idx] = { ...current.items[idx], claimedBy: myName, claimedAt: Date.now() };
   await savePool(current);
   state.pool = current;
   lastPoolSerialized = JSON.stringify(current);
   renderDynamic();
   syncToSheet(current.items[idx]);
-  showToast(`Đã khóa DATA #${String(id).padStart(6,'0')} cho ${state.saleName}`, 'ok');
+  showToast(`Đã khóa DATA #${String(id).padStart(6,'0')} cho ${myName}`, 'ok');
 }
 
 async function resetAll() {
@@ -787,7 +823,12 @@ function avatarHtmlByKey(key, size) {
 
 function resetPin(key) {
   if (!pinsRef) return;
-  if (!confirm(`Reset PIN cho "${key}"? Người này sẽ cần đặt PIN mới ở lần vào tiếp theo.`)) return;
+  const code = prompt(`Reset PIN cho "${key}"? Người này sẽ cần đặt PIN mới ở lần vào tiếp theo.\nNhập lại mã Quản trị để xác nhận:`);
+  if (code === null) return;
+  if (code !== ROLE_CODES.admin) {
+    showToast('Sai mã Quản trị — huỷ thao tác reset', 'warn');
+    return;
+  }
   pinsRef.child(key).remove()
     .then(() => showToast(`Đã reset PIN cho "${key}"`, 'ok'))
     .catch(() => showToast('Reset PIN thất bại, kiểm tra mạng', 'warn'));
@@ -1140,7 +1181,7 @@ function renderShell() {
         <h3 class="sub-head">Tổng hợp theo người (theo bộ lọc hiện tại)</h3>
         <div id="statsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Quản lý mã PIN (Marketing &amp; Sale)</h3>
-        <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Có thể xem sẵn PIN để đọc cho họ, hoặc bấm "Reset" để họ tự đặt PIN mới.</p>
+        <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Xem PIN của từng người để đọc cho họ khi quên.</p>
         <input class="input" id="pinsSearchInput" placeholder="Tìm tên…" style="max-width:200px;margin-bottom:10px;" />
         <div id="pinsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Chi tiết</h3>
@@ -1238,7 +1279,11 @@ function renderPinsSection() {
     return;
   }
   const q = (document.getElementById('pinsSearchInput')?.value || '').trim().toLowerCase();
-  const keys = Object.keys(allPins).filter(k => !q || k.includes(q)).sort();
+  if (!q) {
+    el.innerHTML = '<div class="empty small">Gõ tên để tìm PIN của người đó.</div>';
+    return;
+  }
+  const keys = Object.keys(allPins).filter(k => k.includes(q)).sort();
   if (keys.length === 0) {
     el.innerHTML = '<div class="empty small">Không có tên nào khớp.</div>';
     return;
@@ -1250,7 +1295,6 @@ function renderPinsSection() {
           ${avatarHtmlByKey(k, 26)}
           <span class="log-name">${k}</span>
           <span class="ticket" style="min-width:auto;">PIN: <b style="color:#EAF0FF;">${allPins[k]}</b></span>
-          <button class="btn ghost small" data-reset-pin="${k}">↺ Reset</button>
         </div>
       `).join('')}
     </div>
@@ -1607,7 +1651,13 @@ document.getElementById('app').addEventListener('click', async (e) => {
   const deleteBtn = e.target.closest('[data-delete]');
   if (deleteBtn) {
     const id = Number(deleteBtn.dataset.delete);
-    if (confirm(`Xoá DATA #${String(id).padStart(6,'0')}?`)) deleteItem(id);
+    const code = prompt(`Xoá DATA #${String(id).padStart(6,'0')}? Không thể hoàn tác.\nNhập lại mã Quản trị để xác nhận:`);
+    if (code === null) return;
+    if (code !== ROLE_CODES.admin) {
+      showToast('Sai mã Quản trị — huỷ thao tác xoá', 'warn');
+      return;
+    }
+    deleteItem(id);
     return;
   }
   const resetPinBtn = e.target.closest('[data-reset-pin]');
