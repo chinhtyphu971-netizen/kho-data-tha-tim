@@ -407,6 +407,9 @@ let state = {
   pendingImage: null,
   pendingZaloLink: null,
   notifyEnabled: safeGet(NOTIFY_KEY) === '1',
+  adminPage: 1, adminPageSize: 25,
+  mktPage: 1, mktPageSize: 25,
+  salePage: 1, salePageSize: 25,
   pendingAvatar: null,
   chatItem: null,
   chatMessages: [],
@@ -918,6 +921,33 @@ function copyToClipboard(text) {
   }
 }
 
+function paginate(items, page, pageSize) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  const start = (clampedPage - 1) * pageSize;
+  return { pageItems: items.slice(start, start + pageSize), totalPages, page: clampedPage, total: items.length };
+}
+
+function paginationHtml(prefix, page, totalPages, pageSize, total) {
+  if (total === 0) return '';
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:12px;">
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#7C89A6;">
+        Số dòng/trang:
+        <select class="select" data-page-size="${prefix}" style="padding:4px 8px;">
+          ${[10,25,50,100].map(n => `<option value="${n}" ${n===pageSize?'selected':''}>${n}</option>`).join('')}
+        </select>
+        <span>(${total} dòng)</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn ghost small" data-page-prev="${prefix}" ${page<=1?'disabled':''}>‹ Trước</button>
+        <span style="font-size:12.5px;color:#7C89A6;">Trang ${page}/${totalPages}</span>
+        <button class="btn ghost small" data-page-next="${prefix}" ${page>=totalPages?'disabled':''}>Sau ›</button>
+      </div>
+    </div>
+  `;
+}
+
 function findItemById(id) {
   return (state.pool.items || []).find(it => it.id === id) || null;
 }
@@ -1174,6 +1204,7 @@ function renderShell() {
           <button class="btn ghost small" id="mktFilterClearBtn">Xoá lọc</button>
         </div>
         <div class="log-list" id="logList"></div>
+        <div id="mktPagination"></div>
       </section>
     `;
     renderDropZone();
@@ -1256,6 +1287,7 @@ function renderShell() {
         <div id="pinsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Chi tiết</h3>
         <div class="table" id="adminTable"></div>
+        <div id="adminPagination"></div>
       </section>
     `;
   }
@@ -1467,8 +1499,10 @@ function renderDynamic() {
 
     const logList = document.getElementById('logList');
     if (logList) {
+      const { pageItems: mktPageItems, totalPages: mktTotalPages, page: mktPageNum, total: mktTotal } = paginate(mineFiltered, state.mktPage, state.mktPageSize);
+      state.mktPage = mktPageNum;
       logList.innerHTML = mineFiltered.length === 0 ? '<div class="empty small">Không có data khớp bộ lọc.</div>' :
-        mineFiltered.slice(0,50).map(it => `
+        mktPageItems.map(it => `
           <div class="log-row">
             <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
             <span class="log-name">${it.name}${it.qrImage ? ' 📷' : ''}</span>
@@ -1480,6 +1514,8 @@ function renderDynamic() {
             <span class="log-time">${formatTime(it.createdAt)}</span>
           </div>
         `).join('');
+      const mktPaginationEl = document.getElementById('mktPagination');
+      if (mktPaginationEl) mktPaginationEl.innerHTML = paginationHtml('mkt', mktPageNum, mktTotalPages, state.mktPageSize, mktTotal);
     }
   } else if (state.role === 'sale') {
     const mineCard = (it, badgeText) => {
@@ -1559,9 +1595,13 @@ function renderDynamic() {
           if (sTo && it.claimedAt > new Date(sTo + 'T23:59:59').getTime()) return false;
           return true;
         }).sort((a, b) => b.claimedAt - a.claimedAt);
-        searchResults.innerHTML = mine.length === 0
-          ? '<div class="empty small">Không tìm thấy data nào khớp trong lịch sử của bạn.</div>'
-          : `<div class="locked-list" style="gap:10px;">${mine.map(it => mineCard(it, '✔ Data bạn đã nhận trước đây')).join('')}</div>`;
+        if (mine.length === 0) {
+          searchResults.innerHTML = '<div class="empty small">Không tìm thấy data nào khớp trong lịch sử của bạn.</div>';
+        } else {
+          const { pageItems: salePageItems, totalPages: saleTotalPages, page: salePageNum, total: saleTotal } = paginate(mine, state.salePage, state.salePageSize);
+          state.salePage = salePageNum;
+          searchResults.innerHTML = `<div class="locked-list" style="gap:10px;">${salePageItems.map(it => mineCard(it, '✔ Data bạn đã nhận trước đây')).join('')}</div>${paginationHtml('sale', salePageNum, saleTotalPages, state.salePageSize, saleTotal)}`;
+        }
       }
     }
   } else if (state.role === 'admin') {
@@ -1572,14 +1612,17 @@ function renderDynamic() {
     renderStats(filtered);
     const table = document.getElementById('adminTable');
     if (table) {
+      const { pageItems, totalPages, page, total } = paginate(filtered, state.adminPage, state.adminPageSize);
+      state.adminPage = page;
+      const startIdx = (page - 1) * state.adminPageSize;
       table.innerHTML = `
         <div class="table-head">
           <span>STT</span><span>Ảnh</span><span>Mã data</span><span>Khách</span><span>Nguồn data</span><span>Người gửi</span><span>Trạng thái</span><span>Người nhận</span><span>Giờ gửi</span><span>Giờ nhận</span><span></span>
         </div>
         ${filtered.length === 0 ? '<div class="empty small">Không có dữ liệu khớp bộ lọc.</div>' : ''}
-        ${filtered.map((it, idx) => `
+        ${pageItems.map((it, idx) => `
           <div class="table-row">
-            <span class="muted">${idx + 1}</span>
+            <span class="muted">${startIdx + idx + 1}</span>
             ${qrThumb(it, 'table-thumb')}
             <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
             <span>${it.name}</span>
@@ -1593,6 +1636,8 @@ function renderDynamic() {
           </div>
         `).join('')}
       `;
+      const paginationEl = document.getElementById('adminPagination');
+      if (paginationEl) paginationEl.innerHTML = paginationHtml('admin', page, totalPages, state.adminPageSize, total);
     }
   }
 }
@@ -1802,6 +1847,24 @@ document.getElementById('app').addEventListener('click', async (e) => {
   }
   if (e.target.closest('#filterClearBtn')) { clearAdminFilters(); return; }
   if (e.target.closest('#bulkAssignBtn')) { bulkAssignRole(); return; }
+  const pagePrev = e.target.closest('[data-page-prev]');
+  if (pagePrev) {
+    const p = pagePrev.dataset.pagePrev;
+    if (p === 'admin') state.adminPage = Math.max(1, state.adminPage - 1);
+    if (p === 'mkt') state.mktPage = Math.max(1, state.mktPage - 1);
+    if (p === 'sale') state.salePage = Math.max(1, state.salePage - 1);
+    renderDynamic();
+    return;
+  }
+  const pageNext = e.target.closest('[data-page-next]');
+  if (pageNext) {
+    const p = pageNext.dataset.pageNext;
+    if (p === 'admin') state.adminPage += 1;
+    if (p === 'mkt') state.mktPage += 1;
+    if (p === 'sale') state.salePage += 1;
+    renderDynamic();
+    return;
+  }
   const pinMask = e.target.closest('[data-toggle-pin]');
   if (pinMask) { pinMask.classList.toggle('revealed'); return; }
   if (e.target.closest('#mktFilterClearBtn')) {
@@ -1826,9 +1889,9 @@ document.getElementById('app').addEventListener('keydown', (e) => {
 });
 
 document.getElementById('app').addEventListener('input', (e) => {
-  if (e.target.id === 'saleSearchInput') renderDynamic();
-  if (e.target.id === 'filterSearch') renderDynamic();
-  if (e.target.id === 'mktFilterSearch') renderDynamic();
+  if (e.target.id === 'saleSearchInput') { state.salePage = 1; renderDynamic(); }
+  if (e.target.id === 'filterSearch') { state.adminPage = 1; renderDynamic(); }
+  if (e.target.id === 'mktFilterSearch') { state.mktPage = 1; renderDynamic(); }
   if (e.target.id === 'pinsSearchInput') renderDynamic();
 });
 
@@ -1840,12 +1903,20 @@ document.getElementById('app').addEventListener('focusin', (e) => {
 });
 
 document.getElementById('app').addEventListener('change', (e) => {
-  const ids = [
-    'filterSentBy', 'filterClaimedBy', 'filterStatus', 'filterFrom', 'filterTo',
-    'mktFilterStatus', 'mktFilterFrom', 'mktFilterTo',
-    'saleFilterFrom', 'saleFilterTo',
-  ];
-  if (ids.includes(e.target.id)) renderDynamic();
+  const adminIds = ['filterSentBy', 'filterClaimedBy', 'filterStatus', 'filterFrom', 'filterTo'];
+  const mktIds = ['mktFilterStatus', 'mktFilterFrom', 'mktFilterTo'];
+  const saleIds = ['saleFilterFrom', 'saleFilterTo'];
+  if (adminIds.includes(e.target.id)) { state.adminPage = 1; renderDynamic(); }
+  if (mktIds.includes(e.target.id)) { state.mktPage = 1; renderDynamic(); }
+  if (saleIds.includes(e.target.id)) { state.salePage = 1; renderDynamic(); }
+  if (e.target.dataset && e.target.dataset.pageSize) {
+    const p = e.target.dataset.pageSize;
+    const size = Number(e.target.value) || 25;
+    if (p === 'admin') { state.adminPageSize = size; state.adminPage = 1; }
+    if (p === 'mkt') { state.mktPageSize = size; state.mktPage = 1; }
+    if (p === 'sale') { state.salePageSize = size; state.salePage = 1; }
+    renderDynamic();
+  }
 });
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
