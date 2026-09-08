@@ -594,15 +594,36 @@ async function addItem() {
   if (sendBtn) sendBtn.disabled = true;
   const current = await loadPool();
   const id = current.nextId;
-  const item = {
+  const localItem = {
     id, name: name.trim(), note: note.trim(), createdAt: Date.now(),
     claimedBy: null, claimedAt: null, qrImage: state.pendingImage || null,
     sentBy: state.mktName || '', zaloLink: state.pendingZaloLink || null,
   };
-  const next = { nextId: id + 1, items: [item, ...current.items] };
-  await savePool(next);
-  state.pool = next;
-  lastPoolSerialized = JSON.stringify(next);
+  const nextLocal = { nextId: id + 1, items: [localItem, ...current.items] };
+
+  let saveOk = true;
+  if (dbRef) {
+    // Dùng giờ của máy chủ Firebase cho createdAt, tránh lệch giờ do đồng hồ từng máy khác nhau.
+    const itemForServer = { ...localItem, createdAt: firebase.database.ServerValue.TIMESTAMP };
+    const nextForServer = { nextId: id + 1, items: [itemForServer, ...current.items] };
+    saveLocalCache(nextLocal);
+    try {
+      await dbRef.set(nextForServer);
+      remoteWarned = false;
+    } catch (e) {
+      saveOk = false;
+      if (!remoteWarned) {
+        showToast('Chưa lưu được lên kho dùng chung — kiểm tra mạng rồi thử lại', 'warn');
+        remoteWarned = true;
+      }
+    }
+  } else {
+    saveOk = await savePool(nextLocal);
+  }
+  if (!saveOk) { if (sendBtn) sendBtn.disabled = false; return; }
+
+  state.pool = nextLocal;
+  lastPoolSerialized = JSON.stringify(nextLocal);
   state.pendingImage = null;
   state.pendingZaloLink = null;
   if (nameInput) nameInput.value = '';
@@ -610,7 +631,7 @@ async function addItem() {
   if (sendBtn) sendBtn.disabled = false;
   renderDropZone();
   renderDynamic();
-  syncToSheet(item);
+  syncToSheet(localItem);
   showToast(`Đã gửi DATA #${String(id).padStart(6,'0')}`, 'ok');
 }
 
