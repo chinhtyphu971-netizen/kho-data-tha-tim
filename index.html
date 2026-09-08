@@ -843,6 +843,38 @@ function avatarHtmlByKey(key, size) {
   return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${nameColor(key)};color:#fff;font-size:${Math.round(size*0.45)}px;font-weight:700;flex-shrink:0;vertical-align:middle;">${initial}</span>`;
 }
 
+async function bulkAssignRole() {
+  if (!pinsRef) { showToast('Cần bật kho dùng chung (Firebase)', 'warn'); return; }
+  const textarea = document.getElementById('bulkAssignNames');
+  const roleSelect = document.getElementById('bulkAssignRole');
+  const raw = textarea ? textarea.value : '';
+  const role = roleSelect ? roleSelect.value : 'sale';
+  const names = raw.split(',').map(n => n.trim()).filter(Boolean);
+  if (names.length === 0) { showToast('Dán danh sách tên trước đã', 'warn'); return; }
+
+  const btn = document.getElementById('bulkAssignBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang gán…'; }
+
+  let assigned = 0, skipped = 0;
+  for (const name of names) {
+    const key = pinKey(name);
+    if (!key) { skipped++; continue; }
+    try {
+      const snap = await pinsRef.child(key).once('value');
+      const existing = snap.val();
+      if (existing === null) { skipped++; continue; }
+      const existingPin = (existing && typeof existing === 'object') ? existing.pin : existing;
+      await pinsRef.child(key).set({ pin: existingPin, role });
+      assigned++;
+    } catch (e) {
+      skipped++;
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Gán vai trò'; }
+  showToast(`Đã gán ${assigned} người vào ${role === 'marketing' ? 'Marketing' : 'Sale'}${skipped > 0 ? `, bỏ qua ${skipped} tên chưa từng đăng ký` : ''}`, 'ok');
+}
+
 function resetPin(key) {
   if (!pinsRef) return;
   const code = prompt(`Reset PIN cho "${key}"? Người này sẽ cần đặt PIN mới ở lần vào tiếp theo.\nNhập lại mã Quản trị để xác nhận:`);
@@ -1206,6 +1238,20 @@ function renderShell() {
         <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Xem PIN của từng người để đọc cho họ khi quên.</p>
         <input class="input" id="pinsSearchInput" placeholder="Tìm tên…" style="max-width:200px;margin-bottom:10px;" />
         <div id="pinsSection" style="margin-bottom:20px;"></div>
+        <details style="margin-bottom:20px;">
+          <summary style="cursor:pointer;font-size:12.5px;color:#7C89A6;">🏷️ Gán nhanh vai trò cho tên đã đăng ký từ trước</summary>
+          <div style="margin-top:10px;">
+            <textarea id="bulkAssignNames" class="input" rows="3" style="width:100%;resize:vertical;" placeholder="Dán danh sách tên, cách nhau bằng dấu phẩy…"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+              <select class="select" id="bulkAssignRole">
+                <option value="marketing">📣 Gán vào Marketing</option>
+                <option value="sale">❤️ Gán vào Sale</option>
+              </select>
+              <button class="btn primary small" id="bulkAssignBtn">Gán vai trò</button>
+            </div>
+            <p class="muted" style="font-size:11.5px;margin-top:6px;">Chỉ áp dụng cho tên đã từng đăng ký PIN — không đổi PIN của họ, chỉ gán thêm vai trò.</p>
+          </div>
+        </details>
         <h3 class="sub-head">Chi tiết</h3>
         <div class="table" id="adminTable"></div>
       </section>
@@ -1757,6 +1803,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
     return;
   }
   if (e.target.closest('#filterClearBtn')) { clearAdminFilters(); return; }
+  if (e.target.closest('#bulkAssignBtn')) { bulkAssignRole(); return; }
   if (e.target.closest('#mktFilterClearBtn')) {
     ['mktFilterSearch', 'mktFilterFrom', 'mktFilterTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     const s = document.getElementById('mktFilterStatus'); if (s) s.value = '';
