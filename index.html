@@ -1370,6 +1370,7 @@ function renderShell() {
         </div>
         <div class="form-grid">
           <div class="drop-zone" id="dropZone" tabindex="0"></div>
+          <div id="pasteProxy" contenteditable="true" inputmode="none" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;pointer-events:none;"></div>
           <div class="form-fields">
             <input class="input" id="nameInput" placeholder="Tên, SĐT hoặc link Facebook khách" />
             <input class="input" id="noteInput" placeholder="Nguồn data (tuỳ chọn)" />
@@ -1966,7 +1967,14 @@ document.getElementById('app').addEventListener('click', async (e) => {
     return;
   }
   if (e.target.closest('#dropZone')) {
-    e.target.closest('#dropZone').focus();
+    const proxy = document.getElementById('pasteProxy');
+    if (proxy) {
+      proxy.style.pointerEvents = 'auto';
+      proxy.focus();
+      setTimeout(() => { proxy.style.pointerEvents = 'none'; }, 50);
+    } else {
+      e.target.closest('#dropZone').focus();
+    }
     return;
   }
   if (e.target.closest('#setupConfirmBtn')) {
@@ -2221,6 +2229,9 @@ document.addEventListener('paste', (e) => {
   for (const it of items) {
     if (it.type.indexOf('image') !== -1) {
       handleImageFile(it.getAsFile());
+      e.preventDefault();
+      const proxy = document.getElementById('pasteProxy');
+      if (proxy) setTimeout(() => { proxy.innerHTML = ''; }, 0);
       break;
     }
   }
