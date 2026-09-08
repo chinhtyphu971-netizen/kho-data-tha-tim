@@ -95,7 +95,7 @@
   .heart-btn { display: flex; align-items: center; justify-content: center; gap: 7px; background: #FF4757; color: #fff; border: none; padding: 10px; border-radius: 9px; font-size: 13.5px; font-weight: 650; cursor: pointer; width: 100%; }
   .heart-btn:hover { background: #ff5c6c; }
   .table { display: flex; flex-direction: column; gap: 2px; overflow-x: auto; }
-  .table-head, .table-row { display: grid; grid-template-columns: 40px 60px 100px 1.1fr 1.2fr 100px 110px 100px 90px 90px 32px; gap: 10px; padding: 9px 10px; font-size: 12.5px; align-items: center; min-width: 840px; }
+  .table-head, .table-row { display: grid; grid-template-columns: 40px 60px 100px 1.1fr 1.2fr 100px 110px 100px 90px 90px 68px; gap: 10px; padding: 9px 10px; font-size: 12.5px; align-items: center; min-width: 870px; }
   .row-delete-btn { background: rgba(255,71,87,0.12); border: 1px solid rgba(255,71,87,0.3); color: #FF8A93; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 1; }
   .row-delete-btn:hover { background: rgba(255,71,87,0.25); }
   .table-head { color: #556; font-size: 11.5px; border-bottom: 1px solid rgba(255,255,255,0.06); }
@@ -791,7 +791,10 @@ function getUnreadCount(itemId) {
 }
 
 function myCurrentName() {
-  return state.role === 'sale' ? state.saleName : (state.role === 'marketing' ? state.mktName : '');
+  if (state.role === 'sale') return state.saleName;
+  if (state.role === 'marketing') return state.mktName;
+  if (state.role === 'admin') return 'Quản trị';
+  return '';
 }
 
 function isRelevantChatItem(item) {
@@ -1096,10 +1099,12 @@ function renderChatModal() {
   if (!state.chatItem) { root.innerHTML = ''; return; }
   const it = findItemById(state.chatItem.id) || state.chatItem;
   const me = myCurrentName();
-  const otherName = state.role === 'sale' ? (it.sentBy || '') : (it.claimedBy || '');
-  const otherLabel = state.role === 'sale'
-    ? (it.sentBy ? `Marketing: ${it.sentBy}` : 'Marketing (không rõ tên)')
-    : (it.claimedBy ? `Sale: ${it.claimedBy}` : 'Sale');
+  const otherName = state.role === 'admin' ? '' : (state.role === 'sale' ? (it.sentBy || '') : (it.claimedBy || ''));
+  const otherLabel = state.role === 'admin'
+    ? `Marketing: ${it.sentBy || 'không rõ'} ↔ Sale: ${it.claimedBy || 'chưa nhận'}`
+    : state.role === 'sale'
+      ? (it.sentBy ? `Marketing: ${it.sentBy}` : 'Marketing (không rõ tên)')
+      : (it.claimedBy ? `Sale: ${it.claimedBy}` : 'Sale');
   root.innerHTML = `
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-modal">
@@ -1719,7 +1724,10 @@ function renderDynamic() {
             <span style="display:flex;align-items:center;gap:6px;">${it.claimedBy ? avatarHtml(it.claimedBy, 18) : ''}${it.claimedBy || '—'}</span>
             <span class="muted">${formatTime(it.createdAt)}</span>
             <span class="muted">${formatTime(it.claimedAt)}</span>
-            <button class="row-delete-btn" data-delete="${it.id}" title="Xoá data này">✕</button>
+            <div style="display:flex;gap:4px;">
+              ${it.claimedBy ? `<button class="chat-btn" style="padding:6px 8px;" data-chat="${it.id}" title="Xem trao đổi">💬</button>` : ''}
+              <button class="row-delete-btn" data-delete="${it.id}" title="Xoá data này">✕</button>
+            </div>
           </div>
         `).join('')}
       `;
