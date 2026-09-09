@@ -675,7 +675,7 @@ async function handleImageFile(file) {
   if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = async (e) => {
-    const resized = await resizeImage(e.target.result, 480, 0.75);
+    const resized = await resizeImage(e.target.result, 360, 0.55);
     state.pendingImage = resized;
     renderDropZone();
     const link = await decodeQrLink(e.target.result);
