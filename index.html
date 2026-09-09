@@ -316,8 +316,8 @@ async function checkOrRegisterPin(name, pin, role) {
     const snap = await pinsRef.child(key).once('value');
     const existing = snap.val();
     if (existing === null) {
-      // First time this name is used — register this PIN + role for it.
-      await pinsRef.child(key).set({ pin, role: role || '' });
+      // First time this name is used — register this PIN + role + timestamp for it.
+      await pinsRef.child(key).set({ pin, role: role || '', registeredAt: Date.now() });
       return { ok: true, registered: true };
     }
     const existingPin = (existing && typeof existing === 'object') ? existing.pin : existing;
@@ -488,6 +488,7 @@ let state = {
   mktPage: 1, mktPageSize: 25,
   salePage: 1, salePageSize: 25,
   saleDayPage: 1, saleDaysPerPage: 3,
+  pinsSortMode: 'newest',
   pendingAvatar: null,
   groupChatOpen: false,
   pendingChatImage: null,
@@ -1803,7 +1804,13 @@ function renderShell() {
         <div id="statsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Quản lý mã PIN (Marketing, Sale &amp; Quản trị)</h3>
         <p class="muted" style="font-size:12px;margin:-4px 0 10px;">Xem PIN của từng người để đọc cho họ khi quên.</p>
-        <input class="input" id="pinsSearchInput" placeholder="Tìm tên…" style="max-width:200px;margin-bottom:10px;" />
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+          <input class="input" id="pinsSearchInput" placeholder="Tìm tên…" style="max-width:200px;margin:0;" />
+          <select class="select" id="pinsSortSelect">
+            <option value="newest">Mới đăng ký trước</option>
+            <option value="alpha">Theo tên (A-Z)</option>
+          </select>
+        </div>
         <div id="pinsSection" style="margin-bottom:20px;"></div>
         <h3 class="sub-head">Chi tiết</h3>
         <div class="table" id="adminTable"></div>
@@ -1900,8 +1907,8 @@ function renderStats(filteredItems) {
 let pinsListOpen = false;
 function pinInfo(k) {
   const v = allPins[k];
-  if (v && typeof v === 'object') return { pin: v.pin, role: v.role || '' };
-  return { pin: v, role: '' }; // dữ liệu cũ trước khi có phân loại vai trò
+  if (v && typeof v === 'object') return { pin: v.pin, role: v.role || '', registeredAt: v.registeredAt || 0 };
+  return { pin: v, role: '', registeredAt: 0 }; // dữ liệu cũ trước khi có phân loại vai trò
 }
 
 function renderTrashSection() {
@@ -1941,7 +1948,10 @@ function renderPinsSection() {
     el.innerHTML = '<div class="empty small">Bấm vào ô để xem danh sách, gõ tên để lọc bớt.</div>';
     return;
   }
-  const keys = Object.keys(allPins).filter(k => k.includes(q)).sort();
+  const keys = Object.keys(allPins).filter(k => k.includes(q))
+    .sort((a, b) => state.pinsSortMode === 'alpha'
+      ? a.localeCompare(b)
+      : pinInfo(b).registeredAt - pinInfo(a).registeredAt);
   if (keys.length === 0) {
     el.innerHTML = '<div class="empty small">Không có tên nào khớp.</div>';
     return;
@@ -2603,6 +2613,10 @@ document.getElementById('app').addEventListener('change', (e) => {
   if (e.target.id === 'saleDaysPerPageSelect') {
     state.saleDaysPerPage = Number(e.target.value) || 3;
     state.saleDayPage = 1;
+    renderDynamic();
+  }
+  if (e.target.id === 'pinsSortSelect') {
+    state.pinsSortMode = e.target.value;
     renderDynamic();
   }
 });
