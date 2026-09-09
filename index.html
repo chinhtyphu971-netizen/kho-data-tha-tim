@@ -1757,8 +1757,9 @@ function renderDynamic() {
       logList.innerHTML = mineFiltered.length === 0 ? '<div class="empty small">Không có data khớp bộ lọc.</div>' :
         mktPageItems.map(it => `
           <div class="log-row">
+            ${it.qrImage ? `<img src="${it.qrImage}" alt="QR" data-zoom-item="${it.id}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;cursor:zoom-in;flex-shrink:0;" />` : ''}
             <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
-            <span class="log-name">${it.name}${it.qrImage ? ' 📷' : ''}</span>
+            <span class="log-name">${it.name}</span>
             <span class="status ${it.claimedBy ? 'locked' : 'pending'}">${it.claimedBy ? `🔒 ${it.claimedBy}` : 'Đang chờ'}</span>
             ${it.claimedBy ? (() => {
               const n = getUnreadCount(it.id);
