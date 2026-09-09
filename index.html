@@ -487,6 +487,7 @@ let state = {
   adminPage: 1, adminPageSize: 25,
   mktPage: 1, mktPageSize: 25,
   salePage: 1, salePageSize: 25,
+  saleDayPage: 1, saleDaysPerPage: 3,
   pendingAvatar: null,
   groupChatOpen: false,
   pendingChatImage: null,
@@ -2106,12 +2107,47 @@ function renderDynamic() {
           }).join('')}
         </div>
         ${(() => {
-          const mineClaimed = claimed.filter(it => it.claimedBy === state.saleName);
+          const mineClaimed = claimed.filter(it => it.claimedBy === state.saleName).sort((a, b) => b.claimedAt - a.claimedAt);
           if (mineClaimed.length === 0) return '';
+          const dayGroups = {};
+          const dayKeys = [];
+          mineClaimed.forEach(it => {
+            const d = new Date(it.claimedAt);
+            const key = d.toDateString();
+            if (!dayGroups[key]) {
+              dayGroups[key] = { label: d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }), items: [] };
+              dayKeys.push(key);
+            }
+            dayGroups[key].items.push(it);
+          });
+          const { pageItems: pageDayKeys, totalPages, page, total } = paginate(dayKeys, state.saleDayPage, state.saleDaysPerPage);
+          state.saleDayPage = page;
           return `
-            <h3 class="sub-head">Đã khóa (của bạn)</h3>
-            <div class="locked-list" style="gap:10px;">
-              ${mineClaimed.slice(0,10).map(it => mineCard(it, '✔ Bạn đã nhận data này')).join('')}
+            <h3 class="sub-head">Đã khóa (của bạn) — ${mineClaimed.length} data</h3>
+            ${pageDayKeys.map(key => {
+              const g = dayGroups[key];
+              return `
+                <div style="margin-bottom:14px;">
+                  <div style="font-size:12.5px;font-weight:650;color:#7C89A6;margin-bottom:6px;">📅 ${g.label} (${g.items.length} data)</div>
+                  <div class="locked-list" style="gap:10px;">
+                    ${g.items.map(it => mineCard(it, '✔ Bạn đã nhận data này')).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:8px;">
+              <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#7C89A6;">
+                Số ngày/trang:
+                <select class="select" id="saleDaysPerPageSelect" style="padding:4px 8px;">
+                  ${[1,3,5,7].map(n => `<option value="${n}" ${n===state.saleDaysPerPage?'selected':''}>${n}</option>`).join('')}
+                </select>
+                <span>(${total} ngày)</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn ghost small" data-sale-day-prev ${page<=1?'disabled':''}>‹ Trước</button>
+                <span style="font-size:12.5px;color:#7C89A6;">Trang ${page}/${totalPages}</span>
+                <button class="btn ghost small" data-sale-day-next ${page>=totalPages?'disabled':''}>Sau ›</button>
+              </div>
             </div>
           `;
         })()}
@@ -2482,6 +2518,16 @@ document.getElementById('app').addEventListener('click', async (e) => {
     renderDynamic();
     return;
   }
+  if (e.target.closest('[data-sale-day-prev]')) {
+    state.saleDayPage = Math.max(1, state.saleDayPage - 1);
+    renderDynamic();
+    return;
+  }
+  if (e.target.closest('[data-sale-day-next]')) {
+    state.saleDayPage += 1;
+    renderDynamic();
+    return;
+  }
   const pinMask = e.target.closest('[data-toggle-pin]');
   if (pinMask) { pinMask.classList.toggle('revealed'); return; }
   if (e.target.closest('#mktFilterClearBtn')) {
@@ -2534,6 +2580,11 @@ document.getElementById('app').addEventListener('change', (e) => {
     if (p === 'admin') { state.adminPageSize = size; state.adminPage = 1; }
     if (p === 'mkt') { state.mktPageSize = size; state.mktPage = 1; }
     if (p === 'sale') { state.salePageSize = size; state.salePage = 1; }
+    renderDynamic();
+  }
+  if (e.target.id === 'saleDaysPerPageSelect') {
+    state.saleDaysPerPage = Number(e.target.value) || 3;
+    state.saleDayPage = 1;
     renderDynamic();
   }
 });
