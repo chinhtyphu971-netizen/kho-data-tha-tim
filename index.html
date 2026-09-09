@@ -885,6 +885,40 @@ function getUnreadCount(itemId) {
   return msgs.filter(m => m.ts > lastRead && m.sender !== me).length;
 }
 
+function getUnreadChatOrders() {
+  const me = myCurrentName();
+  const items = state.pool.items || [];
+  let relevant;
+  if (state.role === 'marketing') relevant = items.filter(it => it.sentBy === me);
+  else if (state.role === 'sale') relevant = items.filter(it => it.claimedBy === me);
+  else relevant = items.filter(it => it.claimedBy);
+  return relevant
+    .map(it => ({ item: it, count: getUnreadCount(it.id) }))
+    .filter(x => x.count > 0)
+    .sort((a, b) => b.count - a.count);
+}
+
+function renderUnreadOrdersBox(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const list = getUnreadChatOrders();
+  if (list.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div style="background:#0D1526;border:1px solid rgba(255,71,87,0.35);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+      <div style="font-size:12.5px;font-weight:650;color:#FF8A93;margin-bottom:8px;">🔔 Có ${list.length} đơn tin nhắn chưa đọc (kể cả đơn ngày cũ)</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${list.map(({ item, count }) => `
+          <button data-chat="${item.id}" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:#151F32;border:none;border-radius:8px;padding:8px 10px;cursor:pointer;color:#EAF0FF;font-size:13px;">
+            <span class="ticket">#${String(item.id).padStart(6,'0')}</span>
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</span>
+            <span class="chat-badge">${count}</span>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 function myCurrentName() {
   if (state.role === 'sale') return state.saleName;
   if (state.role === 'marketing') return state.mktName;
@@ -1368,6 +1402,7 @@ function renderShell() {
             <span class="pill" id="mktNamePill">${avatarHtml(state.mktName, 18)} ${state.mktName} · <button id="changeMktNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
           </div>
         </div>
+        <div id="mktUnreadChats"></div>
         <div class="form-grid">
           <div class="drop-zone" id="dropZone" tabindex="0" contenteditable="true" inputmode="none"></div>
           <div class="form-fields">
@@ -1428,6 +1463,7 @@ function renderShell() {
               <span class="pill" id="saleNamePill">${avatarHtml(state.saleName, 18)} ${state.saleName} · <button id="changeNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
             </div>
           </div>
+          <div id="saleUnreadChats"></div>
           <button id="saleSearchToggleBtn" class="btn ghost small" style="margin-bottom:12px;">🔍 Tra lại data đã chốt ▾</button>
           <div id="saleSearchWrap" style="display:none;">
             <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
@@ -1695,6 +1731,7 @@ function renderDynamic() {
   const claimed = items.filter(i => i.claimedBy).sort((a,b) => b.claimedAt - a.claimedAt);
 
   if (state.role === 'marketing') {
+    renderUnreadOrdersBox('mktUnreadChats');
     const mine = items.filter(it => it.sentBy === state.mktName);
     const minePending = mine.filter(it => !it.claimedBy);
     const pill = document.getElementById('pendingPill');
@@ -1734,6 +1771,7 @@ function renderDynamic() {
       if (mktPaginationEl) mktPaginationEl.innerHTML = paginationHtml('mkt', mktPageNum, mktTotalPages, state.mktPageSize, mktTotal);
     }
   } else if (state.role === 'sale') {
+    renderUnreadOrdersBox('saleUnreadChats');
     const mineCard = (it, badgeText) => {
       const n = getUnreadCount(it.id);
       return `
