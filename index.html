@@ -150,6 +150,9 @@
   .chat-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; background: #FF4757; color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; margin-left: 6px; }
   .chat-btn:hover { background: rgba(127,184,255,0.22); }
   .chat-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: flex-end; justify-content: center; z-index: 100; padding: 0; }
+  .group-chat-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 100; display: flex; align-items: flex-end; justify-content: flex-end; padding: 16px; }
+  .group-chat-overlay .chat-modal { pointer-events: auto; width: 320px; max-width: calc(100vw - 32px); height: 440px; max-height: 70dvh; border-radius: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+  @media (max-width: 480px) { .group-chat-overlay { padding: 10px; } .group-chat-overlay .chat-modal { width: calc(100vw - 20px); } }
   .chat-modal { background: #111A2E; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px 16px 0 0; width: 100%; max-width: 420px; height: 70dvh; max-height: 70dvh; display: flex; flex-direction: column; overflow: hidden; }
   .chat-header { padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-shrink: 0; }
   .chat-header .title { font-size: 14px; font-weight: 650; }
@@ -284,23 +287,31 @@ const SHEETS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbz6b1um3dix-
 
 function syncToSheet(item) {
   if (!SHEETS_WEBHOOK_URL) return;
-  try {
-    fetch(SHEETS_WEBHOOK_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        id: item.id,
-        name: item.name,
-        note: item.note || '',
-        sentBy: item.sentBy || '',
-        claimedBy: item.claimedBy || '',
-        createdAt: item.createdAt ? formatDateTime(item.createdAt) : '',
-        claimedAt: item.claimedAt ? formatDateTime(item.claimedAt) : '',
-        status: item.claimedBy ? 'Đã khóa' : 'Đang chờ',
-      }),
-    }).catch(() => {});
-  } catch (e) {}
+  const payload = JSON.stringify({
+    id: item.id,
+    name: item.name,
+    note: item.note || '',
+    sentBy: item.sentBy || '',
+    claimedBy: item.claimedBy || '',
+    createdAt: item.createdAt ? formatDateTime(item.createdAt) : '',
+    claimedAt: item.claimedAt ? formatDateTime(item.claimedAt) : '',
+    status: item.claimedBy ? 'Đã khóa' : 'Đang chờ',
+  });
+  const send = () => {
+    try {
+      fetch(SHEETS_WEBHOOK_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: payload,
+      }).catch(() => {});
+    } catch (e) {}
+  };
+  send();
+  // Chế độ 'no-cors' không cho biết lần gửi đầu có thành công hay không (kể cả rớt mạng
+  // âm thầm), nên gửi lại thêm 1 lần nữa cho chắc — an toàn vì Apps Script đã khoá tuần tự,
+  // gửi trùng chỉ cập nhật đè lên đúng 1 dòng, không tạo dòng mới.
+  setTimeout(send, 4000);
 }
 
 function pinKey(name) {
@@ -1441,7 +1452,7 @@ function renderGroupChatModal() {
   if (!state.groupChatOpen) { root.innerHTML = ''; return; }
   const me = myGroupChatName();
   root.innerHTML = `
-    <div class="chat-overlay" id="groupChatOverlay">
+    <div class="group-chat-overlay" id="groupChatOverlay">
       <div class="chat-modal">
         <div class="chat-header">
           <div>
