@@ -1132,22 +1132,36 @@ if (trashRef) {
 }
 
 let allProfiles = {};
+function refreshNamePillsAndBadge() {
+  const mktPill = document.getElementById('mktNamePill');
+  if (mktPill && state.mktName) {
+    mktPill.innerHTML = `<span id="changeMktNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.mktName, 18)}</span> ${state.mktName}`;
+  }
+  const salePill = document.getElementById('saleNamePill');
+  if (salePill && state.saleName) {
+    salePill.innerHTML = `<span id="changeNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.saleName, 18)}</span> ${state.saleName}`;
+  }
+  const adminPill = document.getElementById('adminNamePill');
+  if (adminPill && state.adminName) {
+    adminPill.innerHTML = `<span id="changeAdminNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.adminName, 18)}</span> ${state.adminName}`;
+  }
+  if (state.lockedRole) renderDynamic();
+}
+
 if (profilesRef) {
-  profilesRef.on('value', (snap) => {
-    allProfiles = snap.val() || {};
-    const mktPill = document.getElementById('mktNamePill');
-    if (mktPill && state.mktName) {
-      mktPill.innerHTML = `<span id="changeMktNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.mktName, 18)}</span> ${state.mktName}`;
-    }
-    const salePill = document.getElementById('saleNamePill');
-    if (salePill && state.saleName) {
-      salePill.innerHTML = `<span id="changeNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.saleName, 18)}</span> ${state.saleName}`;
-    }
-    const adminPill = document.getElementById('adminNamePill');
-    if (adminPill && state.adminName) {
-      adminPill.innerHTML = `<span id="changeAdminNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.adminName, 18)}</span> ${state.adminName}`;
-    }
-    if (state.lockedRole) renderDynamic();
+  // child_added/child_changed thay vì 'value' — mỗi lần chỉ tải đúng 1 ảnh vừa
+  // đổi, không tải lại toàn bộ ảnh của tất cả mọi người mỗi lần có ai đổi ảnh.
+  profilesRef.on('child_added', (snap) => {
+    allProfiles[snap.key] = snap.val();
+    refreshNamePillsAndBadge();
+  });
+  profilesRef.on('child_changed', (snap) => {
+    allProfiles[snap.key] = snap.val();
+    refreshNamePillsAndBadge();
+  });
+  profilesRef.on('child_removed', (snap) => {
+    delete allProfiles[snap.key];
+    refreshNamePillsAndBadge();
   });
 }
 
