@@ -1210,6 +1210,20 @@ function resetPin(key) {
     .catch(() => showToast('Reset PIN thất bại, kiểm tra mạng', 'warn'));
 }
 
+function deletePersonPermanently(key) {
+  if (!pinsRef) return;
+  const code = prompt(`Xoá VĨNH VIỄN "${key}" khỏi danh sách? Sẽ mất PIN, ảnh đại diện, không thể hoàn tác.\nHọ vẫn có thể đăng ký lại từ đầu bằng đúng tên này nếu cần.\nNhập lại mã Quản trị để xác nhận:`);
+  if (code === null) return;
+  if (code !== ROLE_CODES.admin) {
+    showToast('Sai mã Quản trị — huỷ thao tác xoá', 'warn');
+    return;
+  }
+  pinsRef.child(key).remove().catch(() => {});
+  if (profilesRef) profilesRef.child(key).remove().catch(() => {});
+  if (readsRef) readsRef.child(key).remove().catch(() => {});
+  showToast(`Đã xoá vĩnh viễn "${key}"`, 'ok');
+}
+
 function openLightbox(dataUrl) {
   if (!dataUrl) return;
   const root = document.getElementById('lightboxRoot');
@@ -1945,12 +1959,14 @@ function renderPinsSection() {
       <div style="font-size:12.5px;color:#7C89A6;margin-bottom:8px;font-weight:600;">${title} (${list.length})</div>
       <div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;">
         ${list.length === 0 ? '<div class="empty small">Chưa có ai.</div>' : list.map((k, i) => `
-          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">
             <span class="muted" style="min-width:18px;">${i + 1}.</span>
             ${avatarHtmlByKey(k, 22)}
             <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k}</span>
             <span class="ticket" style="min-width:auto;">PIN: <b class="pin-mask" data-toggle-pin style="color:#EAF0FF;"><span class="pin-dots">••••••</span><span class="pin-real">${pinInfo(k).pin}</span></b></span>
             <button class="copy-btn" data-copy-text="${pinInfo(k).pin}" title="Copy PIN">📋</button>
+            <button class="btn ghost small" data-reset-pin="${k}" title="Reset PIN — họ cần đặt PIN mới ở lần vào tiếp theo">↺ Reset</button>
+            <button class="btn ghost small" data-delete-person="${k}" title="Xoá vĩnh viễn khỏi danh sách" style="color:#FF8A93;">🗑️ Xoá</button>
           </div>
         `).join('')}
       </div>
@@ -2443,6 +2459,8 @@ document.getElementById('app').addEventListener('click', async (e) => {
   if (restoreBtn) { restoreItem(Number(restoreBtn.dataset.restoreItem)); return; }
   const resetPinBtn = e.target.closest('[data-reset-pin]');
   if (resetPinBtn) { resetPin(resetPinBtn.dataset.resetPin); return; }
+  const deletePersonBtn = e.target.closest('[data-delete-person]');
+  if (deletePersonBtn) { deletePersonPermanently(deletePersonBtn.dataset.deletePerson); return; }
   const chatBtn = e.target.closest('[data-chat]');
   if (chatBtn) {
     const item = findItemById(Number(chatBtn.dataset.chat));
