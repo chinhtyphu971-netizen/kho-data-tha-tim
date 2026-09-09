@@ -846,6 +846,8 @@ async function resetAll() {
   await savePool(fresh);
   if (claimsRef) claimsRef.remove().catch(() => {});
   if (chatMetaRef) chatMetaRef.remove().catch(() => {});
+  rawPool = fresh;
+  allClaims = {};
   state.pool = fresh;
   lastPoolSerialized = JSON.stringify(fresh);
   renderDynamic();
@@ -858,8 +860,10 @@ async function deleteItem(id) {
   await savePool(next);
   if (claimsRef) claimsRef.child(String(id)).remove().catch(() => {});
   if (chatMetaRef) chatMetaRef.child(String(id)).remove().catch(() => {});
-  state.pool = next;
-  lastPoolSerialized = JSON.stringify(next);
+  rawPool = next;
+  const merged = mergePoolWithClaims(rawPool, allClaims);
+  state.pool = merged;
+  lastPoolSerialized = JSON.stringify(merged);
   renderDynamic();
   showToast(`Đã xoá DATA #${String(id).padStart(6,'0')}`, 'ok');
 }
