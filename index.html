@@ -693,8 +693,22 @@ async function addItem() {
   const name = nameInput ? nameInput.value : '';
   const note = noteInput ? noteInput.value : '';
   if (!name.trim()) { showToast('Nhập tên khách trước đã', 'warn'); return; }
+
   const sendBtn = document.getElementById('sendBtn');
+  if (sendBtn && sendBtn.disabled) return; // đang xử lý lần gửi trước — chặn bấm chồng lên nhau
   if (sendBtn) sendBtn.disabled = true;
+
+  const nameValCheck = name.trim().toLowerCase();
+  const todayStrCheck = new Date().toDateString();
+  const dupItem = (state.pool.items || []).find(it =>
+    it.sentBy === state.mktName &&
+    (it.name || '').trim().toLowerCase() === nameValCheck &&
+    it.createdAt && new Date(it.createdAt).toDateString() === todayStrCheck
+  );
+  if (dupItem) {
+    const ok = confirm(`Bạn đã gửi khách "${dupItem.name}" rồi lúc ${formatTime(dupItem.createdAt)} hôm nay (#${String(dupItem.id).padStart(6,'0')}).\nVẫn muốn gửi tiếp lần nữa?`);
+    if (!ok) { if (sendBtn) sendBtn.disabled = false; return; }
+  }
 
   const qrImage = state.pendingImage || null;
   const zaloLink = state.pendingZaloLink || null;
