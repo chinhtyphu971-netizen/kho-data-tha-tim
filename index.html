@@ -1126,13 +1126,15 @@ if (profilesRef) {
     allProfiles = snap.val() || {};
     const mktPill = document.getElementById('mktNamePill');
     if (mktPill && state.mktName) {
-      const btn = mktPill.querySelector('#changeMktNameBtn');
-      mktPill.innerHTML = `${avatarHtml(state.mktName, 18)} ${state.mktName} · ` + (btn ? btn.outerHTML : '');
+      mktPill.innerHTML = `<span id="changeMktNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.mktName, 18)}</span> ${state.mktName}`;
     }
     const salePill = document.getElementById('saleNamePill');
     if (salePill && state.saleName) {
-      const btn = salePill.querySelector('#changeNameBtn');
-      salePill.innerHTML = `${avatarHtml(state.saleName, 18)} ${state.saleName} · ` + (btn ? btn.outerHTML : '');
+      salePill.innerHTML = `<span id="changeNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.saleName, 18)}</span> ${state.saleName}`;
+    }
+    const adminPill = document.getElementById('adminNamePill');
+    if (adminPill && state.adminName) {
+      adminPill.innerHTML = `<span id="changeAdminNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.adminName, 18)}</span> ${state.adminName}`;
     }
     if (state.lockedRole) renderDynamic();
   });
@@ -1670,7 +1672,7 @@ function renderShell() {
             <button class="btn ${state.notifyEnabled ? 'primary' : 'ghost'} small" id="notifyToggleBtn">
               ${state.notifyEnabled ? '🔔 Đã bật thông báo' : '🔕 Bật thông báo'}
             </button>
-            <span class="pill" id="mktNamePill">${avatarHtml(state.mktName, 18)} ${state.mktName} · <button id="changeMktNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+            <span class="pill" id="mktNamePill"><span id="changeMktNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.mktName, 18)}</span> ${state.mktName}</span>
           </div>
         </div>
         <div id="mktUnreadChats"></div>
@@ -1731,7 +1733,7 @@ function renderShell() {
               <button class="btn ${state.notifyEnabled ? 'primary' : 'ghost'} small" id="notifyToggleBtn">
                 ${state.notifyEnabled ? '🔔 Đã bật thông báo' : '🔕 Bật thông báo data mới'}
               </button>
-              <span class="pill" id="saleNamePill">${avatarHtml(state.saleName, 18)} ${state.saleName} · <button id="changeNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+              <span class="pill" id="saleNamePill"><span id="changeNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.saleName, 18)}</span> ${state.saleName}</span>
             </div>
           </div>
           <div id="saleUnreadChats"></div>
@@ -1779,7 +1781,7 @@ function renderShell() {
         <div class="panel-head">
           <h2>Toàn bộ nhật ký</h2>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span class="pill" id="adminNamePill">${avatarHtml(state.adminName, 18)} ${state.adminName} · <button id="changeAdminNameBtn" style="background:none;border:none;color:#FF8A93;cursor:pointer;font-size:12px;text-decoration:underline;padding:0;">đổi tên</button></span>
+            <span class="pill" id="adminNamePill"><span id="changeAdminNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.adminName, 18)}</span> ${state.adminName}</span>
             <button class="btn ghost small" id="forceReloadAllBtn" title="Bắt tất cả máy đang mở app tự tải lại bản mới nhất">📢 Làm mới cho tất cả</button>
             <button class="btn ghost" id="resetBtn">↺ Xoá dữ liệu demo</button>
           </div>
