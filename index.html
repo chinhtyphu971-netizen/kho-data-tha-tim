@@ -224,6 +224,7 @@ const NAME_KEY = 'khodata-myname-v1';
 const MKT_NAME_KEY = 'khodata-myname-mkt-v1';
 const ADMIN_NAME_KEY = 'khodata-myname-admin-v1';
 const NOTIFY_KEY = 'khodata-notify-v1';
+const GROUP_NOTIFY_KEY = 'khodata-groupnotify-v1';
 const CHAT_READ_KEY = 'khodata-chatread-v1';
 const ROLE_KEY = 'khodata-myrole-v1';
 const LOCAL_POOL_CACHE_KEY = 'khodata-pool-cache-v1';
@@ -484,6 +485,7 @@ let state = {
   salePage: 1, salePageSize: 25,
   pendingAvatar: null,
   groupChatOpen: false,
+  groupNotifyEnabled: safeGet(GROUP_NOTIFY_KEY) !== '0',
   groupChatMessages: [],
   chatItem: null,
   chatMessages: [],
@@ -853,11 +855,11 @@ let allChatsRaw = {};
 
 let currentReadsListenerKey = null;
 
-function markChatRead(itemId) {
+function markChatRead(itemId, nameOverride) {
   const ts = Date.now();
   chatReadMap[itemId] = ts;
   saveReadMap(chatReadMap);
-  const myKey = pinKey(myCurrentName() || '');
+  const myKey = pinKey(nameOverride || myCurrentName() || '');
   if (readsRef && myKey) {
     readsRef.child(myKey).child(String(itemId)).set(ts).catch(() => {});
   }
@@ -933,6 +935,15 @@ function myCurrentName() {
   return '';
 }
 
+// Danh tính dùng cho Chat nhóm — cố định theo đúng vai trò ĐÃ ĐĂNG NHẬP trên máy này,
+// không đổi theo tab đang xem (tránh trường hợp Admin đổi tab làm lệch "mình là ai").
+function myGroupChatName() {
+  if (state.lockedRole === 'sale') return state.saleName;
+  if (state.lockedRole === 'marketing') return state.mktName;
+  if (state.lockedRole === 'admin') return state.adminName;
+  return '';
+}
+
 function isRelevantChatItem(item) {
   if (state.role === 'sale') return item.claimedBy === state.saleName;
   if (state.role === 'marketing') return item.sentBy === state.mktName;
@@ -996,12 +1007,12 @@ if (groupChatRef) {
 
     const currentKeys = new Set(Object.keys(val));
     if (knownGroupMsgKeys === null) { knownGroupMsgKeys = currentKeys; return; }
-    const me = myCurrentName();
+    const me = myGroupChatName();
     const freshKeys = [...currentKeys].filter(k => !knownGroupMsgKeys.has(k));
     knownGroupMsgKeys = currentKeys;
     if (freshKeys.length && state.lockedRole) {
       const freshMsgs = freshKeys.map(k => val[k]).filter(m => m && m.sender !== me);
-      if (freshMsgs.length && !state.groupChatOpen) {
+      if (freshMsgs.length && !state.groupChatOpen && state.groupNotifyEnabled) {
         playBeep();
         const first = freshMsgs[0];
         const body = freshMsgs.length === 1 ? `${first.sender}: ${first.text || '📷 đã gửi 1 ảnh'}` : `${freshMsgs.length} tin nhắn mới trong Chat nhóm`;
@@ -1269,13 +1280,13 @@ function openGroupChat() {
     showToast('Cần bật kho dùng chung (Firebase) để dùng chat nhóm', 'warn');
     return;
   }
-  if (!myCurrentName()) {
+  if (!myGroupChatName()) {
     showToast('Cần có tên để nhắn tin — vào lại đúng vai trò và nhập tên trước', 'warn');
     return;
   }
   state.groupChatOpen = true;
   renderGroupChatModal();
-  markChatRead('group');
+  markChatRead('group', myGroupChatName());
   updateGroupChatBadge();
 }
 
@@ -1288,9 +1299,9 @@ async function sendGroupChatMessage() {
   const input = document.getElementById('groupChatInput');
   const text = input ? input.value.trim() : '';
   if (!text || !groupChatRef) return;
-  const me = myCurrentName();
+  const me = myGroupChatName();
   try {
-    await groupChatRef.push({ sender: me, role: state.role, text, ts: Date.now() });
+    await groupChatRef.push({ sender: me, role: state.lockedRole, text, ts: Date.now() });
     if (input) input.value = '';
   } catch (e) {
     showToast('Gửi tin nhắn thất bại, kiểm tra mạng', 'warn');
@@ -1299,7 +1310,7 @@ async function sendGroupChatMessage() {
 
 async function sendGroupChatImage(file) {
   if (!file || !file.type.startsWith('image/') || !groupChatRef) return;
-  const me = myCurrentName();
+  const me = myGroupChatName();
   if (!me) { showToast('Cần có tên để nhắn tin', 'warn'); return; }
   const reader = new FileReader();
   reader.onload = async (e) => {
@@ -1308,7 +1319,7 @@ async function sendGroupChatImage(file) {
     const input = document.getElementById('groupChatInput');
     const caption = input ? input.value.trim() : '';
     try {
-      await groupChatRef.push({ sender: me, role: state.role, image: resized, text: caption || '', ts: Date.now() });
+      await groupChatRef.push({ sender: me, role: state.lockedRole, image: resized, text: caption || '', ts: Date.now() });
       if (input) input.value = '';
     } catch (err) {
       showToast('Gửi ảnh thất bại, kiểm tra mạng', 'warn');
@@ -1320,7 +1331,7 @@ async function sendGroupChatImage(file) {
 function updateGroupChatBadge() {
   const badge = document.getElementById('groupChatBadge');
   if (!badge) return;
-  const me = myCurrentName();
+  const me = myGroupChatName();
   const lastRead = chatReadMap['group'] || 0;
   const n = state.groupChatMessages.filter(m => m.ts > lastRead && m.sender !== me).length;
   badge.innerHTML = n > 0 ? `<span class="chat-badge">${n}</span>` : '';
@@ -1329,7 +1340,7 @@ function updateGroupChatBadge() {
 function renderGroupChatModal() {
   const root = document.getElementById('groupChatModalRoot');
   if (!state.groupChatOpen) { root.innerHTML = ''; return; }
-  const me = myCurrentName();
+  const me = myGroupChatName();
   root.innerHTML = `
     <div class="chat-overlay" id="groupChatOverlay">
       <div class="chat-modal">
@@ -1338,7 +1349,10 @@ function renderGroupChatModal() {
             <div class="title">💬 Chat nhóm</div>
             <div class="sub">Toàn đội Marketing + Sale + Quản trị</div>
           </div>
-          <button class="chat-close" id="groupChatCloseBtn">✕</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="chat-close" id="groupChatMuteBtn" title="${state.groupNotifyEnabled ? 'Tắt thông báo Chat nhóm' : 'Bật thông báo Chat nhóm'}">${state.groupNotifyEnabled ? '🔔' : '🔕'}</button>
+            <button class="chat-close" id="groupChatCloseBtn">✕</button>
+          </div>
         </div>
         <div class="chat-messages" id="groupChatMessagesList">
           ${state.groupChatMessages.length === 0
@@ -2112,6 +2126,13 @@ document.getElementById('app').addEventListener('click', async (e) => {
   if (e.target.closest('#groupChatBtn')) { openGroupChat(); return; }
   if (e.target.id === 'groupChatOverlay') { closeGroupChat(); return; }
   if (e.target.closest('#groupChatCloseBtn')) { closeGroupChat(); return; }
+  if (e.target.closest('#groupChatMuteBtn')) {
+    state.groupNotifyEnabled = !state.groupNotifyEnabled;
+    safeSet(GROUP_NOTIFY_KEY, state.groupNotifyEnabled ? '1' : '0');
+    showToast(state.groupNotifyEnabled ? 'Đã bật thông báo Chat nhóm' : 'Đã tắt thông báo Chat nhóm', 'ok');
+    renderGroupChatModal();
+    return;
+  }
   if (e.target.closest('#groupChatSendBtn')) { sendGroupChatMessage(); return; }
   if (e.target.closest('#groupChatImageBtn')) { document.getElementById('groupChatImageInput').click(); return; }
   const zoomGroupMsg = e.target.closest('[data-zoom-group-msg]');
