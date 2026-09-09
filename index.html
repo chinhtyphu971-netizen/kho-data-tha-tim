@@ -1965,11 +1965,11 @@ function renderPinsSection() {
               ${avatarHtmlByKey(k, 22)}
               <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px;">${k}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:6px;padding-left:26px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:5px;padding-left:26px;flex-wrap:wrap;">
               <span class="ticket" style="min-width:auto;">PIN: <b class="pin-mask" data-toggle-pin style="color:#EAF0FF;"><span class="pin-dots">••••••</span><span class="pin-real">${pinInfo(k).pin}</span></b></span>
               <button class="copy-btn" data-copy-text="${pinInfo(k).pin}" title="Copy PIN">📋</button>
-              <button class="btn ghost small" data-reset-pin="${k}" title="Reset PIN — họ cần đặt PIN mới ở lần vào tiếp theo">↺ Reset</button>
-              <button class="btn ghost small" data-delete-person="${k}" title="Xoá vĩnh viễn khỏi danh sách" style="color:#FF8A93;">🗑️ Xoá</button>
+              <button data-reset-pin="${k}" title="Reset PIN — họ cần đặt PIN mới ở lần vào tiếp theo" style="background:none;border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:#EAF0FF;font-size:11px;padding:3px 6px;cursor:pointer;white-space:nowrap;">↺</button>
+              <button data-delete-person="${k}" title="Xoá vĩnh viễn khỏi danh sách" style="background:none;border:1px solid rgba(255,71,87,0.3);border-radius:6px;color:#FF8A93;font-size:11px;padding:3px 6px;cursor:pointer;white-space:nowrap;">🗑️</button>
             </div>
           </div>
         `).join('')}
