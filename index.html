@@ -258,6 +258,7 @@ let claimsRef = null;
 let readsRef = null;
 let versionRef = null;
 let groupChatRef = null;
+let chatMetaRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -269,6 +270,7 @@ if (FIREBASE_ENABLED) {
     readsRef = firebase.database().ref('reads');
     versionRef = firebase.database().ref('appVersion');
     groupChatRef = firebase.database().ref('groupChat');
+    chatMetaRef = firebase.database().ref('chatMeta');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -829,6 +831,7 @@ async function resetAll() {
   const fresh = defaultPool();
   await savePool(fresh);
   if (claimsRef) claimsRef.remove().catch(() => {});
+  if (chatMetaRef) chatMetaRef.remove().catch(() => {});
   state.pool = fresh;
   lastPoolSerialized = JSON.stringify(fresh);
   renderDynamic();
@@ -840,6 +843,7 @@ async function deleteItem(id) {
   const next = { nextId: current.nextId, items: current.items.filter(it => it.id !== id) };
   await savePool(next);
   if (claimsRef) claimsRef.child(String(id)).remove().catch(() => {});
+  if (chatMetaRef) chatMetaRef.child(String(id)).remove().catch(() => {});
   state.pool = next;
   lastPoolSerialized = JSON.stringify(next);
   renderDynamic();
@@ -853,7 +857,7 @@ function saveReadMap(map) {
   try { localStorage.setItem(CHAT_READ_KEY, JSON.stringify(map)); } catch (e) {}
 }
 let chatReadMap = loadReadMap();
-let allChatsRaw = {};
+let chatMetaCache = {}; // itemId -> { lastTs, lastSender } — dữ liệu nhẹ, không kèm ảnh, chỉ để biết đơn nào có tin mới
 
 let currentReadsListenerKey = null;
 
@@ -890,10 +894,11 @@ function attachReadsSyncForCurrentUser() {
 }
 
 function getUnreadCount(itemId) {
-  const msgs = allChatsRaw[itemId] ? Object.values(allChatsRaw[itemId]) : [];
+  const meta = chatMetaCache[itemId];
+  if (!meta) return 0;
   const lastRead = chatReadMap[itemId] || 0;
   const me = myCurrentName();
-  return msgs.filter(m => m.ts > lastRead && m.sender !== me).length;
+  return (meta.lastTs > lastRead && meta.lastSender !== me) ? 1 : 0;
 }
 
 function getUnreadChatOrders() {
@@ -952,32 +957,25 @@ function isRelevantChatItem(item) {
   return false;
 }
 
-let knownMsgKeys = null;
-function checkForNewChatMessages(raw) {
-  const currentKeys = new Set();
+let knownMetaState = {}; // itemId -> lastTs đã biết, để phát hiện cái gì thật sự mới
+function checkChatMetaUpdate(meta) {
+  const me = myCurrentName();
   const fresh = [];
-  Object.keys(raw).forEach(itemId => {
-    const msgs = raw[itemId] || {};
-    Object.keys(msgs).forEach(pushKey => {
-      const key = itemId + ':' + pushKey;
-      currentKeys.add(key);
-      if (knownMsgKeys !== null && !knownMsgKeys.has(key)) {
-        const m = msgs[pushKey];
-        const me = myCurrentName();
-        if (m.sender && m.sender !== me) {
-          const item = findItemById(Number(itemId));
-          if (item && isRelevantChatItem(item)) fresh.push({ item, message: m });
-        }
-      }
-    });
+  Object.keys(meta).forEach(itemId => {
+    const m = meta[itemId];
+    if (!m) return;
+    const prevTs = knownMetaState[itemId] || 0;
+    if (m.lastTs > prevTs && m.lastSender && m.lastSender !== me) {
+      const item = findItemById(Number(itemId));
+      if (item && isRelevantChatItem(item)) fresh.push({ item, meta: m });
+    }
   });
-  if (knownMsgKeys === null) { knownMsgKeys = currentKeys; return; }
-  knownMsgKeys = currentKeys;
+  knownMetaState = Object.keys(meta).reduce((acc, k) => { acc[k] = meta[k].lastTs; return acc; }, {});
   if (fresh.length) {
     playBeep();
     const first = fresh[0];
     const body = fresh.length === 1
-      ? `${first.message.sender}: ${first.message.text}`
+      ? `${first.meta.lastSender}: ${first.meta.lastPreview || '📷 đã gửi ảnh'}`
       : `${fresh.length} tin nhắn mới`;
     if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
       try {
@@ -991,44 +989,48 @@ function checkForNewChatMessages(raw) {
   }
 }
 
-if (chatsRef) {
-  chatsRef.on('value', (snap) => {
-    allChatsRaw = snap.val() || {};
-    checkForNewChatMessages(allChatsRaw);
+let chatMetaPrimed = false;
+if (chatMetaRef) {
+  chatMetaRef.on('value', (snap) => {
+    chatMetaCache = snap.val() || {};
+    if (!chatMetaPrimed) {
+      // Lần đầu tải trang: chỉ ghi nhớ mốc hiện tại, không báo "tin mới" hàng loạt.
+      chatMetaPrimed = true;
+      knownMetaState = Object.keys(chatMetaCache).reduce((acc, k) => { acc[k] = chatMetaCache[k].lastTs; return acc; }, {});
+    } else {
+      checkChatMetaUpdate(chatMetaCache);
+    }
+    if (state.lockedRole) renderDynamic();
   });
 }
 
-let knownGroupMsgKeys = null;
+let groupChatPrimed = false;
 if (groupChatRef) {
-  groupChatRef.on('value', (snap) => {
-    const val = snap.val() || {};
-    const list = Object.values(val).sort((a, b) => a.ts - b.ts);
-    state.groupChatMessages = list;
+  groupChatRef.on('child_added', (snap) => {
+    const msg = snap.val();
+    if (!msg) return;
+    state.groupChatMessages.push(msg);
     if (state.groupChatOpen) renderGroupChatModal();
     updateGroupChatBadge();
 
-    const currentKeys = new Set(Object.keys(val));
-    if (knownGroupMsgKeys === null) { knownGroupMsgKeys = currentKeys; return; }
+    if (!groupChatPrimed) return; // đợt tải lịch sử ban đầu — không báo tin mới hàng loạt
     const me = myGroupChatName();
-    const freshKeys = [...currentKeys].filter(k => !knownGroupMsgKeys.has(k));
-    knownGroupMsgKeys = currentKeys;
-    if (freshKeys.length && state.lockedRole) {
-      const freshMsgs = freshKeys.map(k => val[k]).filter(m => m && m.sender !== me);
-      if (freshMsgs.length && !state.groupChatOpen && state.groupNotifyEnabled) {
-        playBeep();
-        const first = freshMsgs[0];
-        const body = freshMsgs.length === 1 ? `${first.sender}: ${first.text || '📷 đã gửi 1 ảnh'}` : `${freshMsgs.length} tin nhắn mới trong Chat nhóm`;
-        if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
-          try {
-            const n = new Notification('💬 Chat nhóm có tin mới', { body });
-            n.onclick = () => { window.focus(); n.close(); };
-          } catch (e) {}
-        } else {
-          showToast(`💬 ${body}`, 'ok');
-        }
+    if (msg.sender && msg.sender !== me && !state.groupChatOpen && state.groupNotifyEnabled) {
+      playBeep();
+      const body = `${msg.sender}: ${msg.text || '📷 đã gửi 1 ảnh'}`;
+      if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          const n = new Notification('💬 Chat nhóm có tin mới', { body });
+          n.onclick = () => { window.focus(); n.close(); };
+        } catch (e) {}
+      } else {
+        showToast(`💬 ${body}`, 'ok');
       }
     }
   });
+  // Dùng sự kiện 'value' 1 lần đầu (once) chỉ để biết khi nào đã tải xong lịch sử ban đầu,
+  // không lặp lại tốn băng thông về sau.
+  groupChatRef.once('value', () => { groupChatPrimed = true; });
 }
 
 let allPins = {};
@@ -1205,17 +1207,20 @@ function openChat(item) {
     showToast('Cần có tên để nhắn tin', 'warn');
     return;
   }
+  if (chatListenerItemId !== null) {
+    chatsRef.child(String(chatListenerItemId)).off();
+  }
   state.chatItem = item;
   state.chatMessages = [];
   renderChatModal();
   markChatRead(item.id);
   renderDynamic();
   chatListenerItemId = item.id;
-  chatsRef.child(String(item.id)).on('value', (snap) => {
+  chatsRef.child(String(item.id)).on('child_added', (snap) => {
     if (chatListenerItemId !== item.id) return;
-    const val = snap.val();
-    const list = val ? Object.values(val).sort((a, b) => a.ts - b.ts) : [];
-    state.chatMessages = list;
+    const msg = snap.val();
+    if (!msg) return;
+    state.chatMessages.push(msg);
     renderChatModal();
     markChatRead(item.id);
     renderDynamic();
@@ -1239,12 +1244,21 @@ async function sendChatMessage() {
   if (!text && !state.pendingChatImage) return;
   if (!state.chatItem) return;
   const me = myCurrentName();
+  const itemId = state.chatItem.id;
   try {
     const payload = { sender: me, role: state.role, text: text || '', ts: Date.now() };
     if (state.pendingChatImage) payload.image = state.pendingChatImage;
-    await chatsRef.child(String(state.chatItem.id)).push(payload);
+    await chatsRef.child(String(itemId)).push(payload);
+    if (chatMetaRef) {
+      chatMetaRef.child(String(itemId)).set({
+        lastTs: payload.ts,
+        lastSender: me,
+        lastPreview: text ? text.slice(0, 60) : '📷 đã gửi ảnh',
+      }).catch(() => {});
+    }
     if (input) input.value = '';
     state.pendingChatImage = null;
+    renderChatModal();
   } catch (e) {
     showToast('Gửi tin nhắn thất bại, kiểm tra mạng', 'warn');
   }
@@ -1298,6 +1312,7 @@ async function sendGroupChatMessage() {
     await groupChatRef.push(payload);
     if (input) input.value = '';
     state.pendingGroupChatImage = null;
+    renderGroupChatModal();
   } catch (e) {
     showToast('Gửi tin nhắn thất bại, kiểm tra mạng', 'warn');
   }
