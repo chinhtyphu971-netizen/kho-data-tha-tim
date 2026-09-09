@@ -200,18 +200,21 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="hardRefreshBtn" class="btn ghost small" title="Tải lại bản mới nhất (thay cho vuốt xuống)">🔄 Làm mới</button>
+      <button id="groupChatBtn" class="btn ghost small" title="Chat nhóm toàn đội">💬 Chat nhóm<span id="groupChatBadge"></span></button>
       <div id="navSlot"></div>
     </div>
   </header>
   <div class="toast" id="toast"></div>
   <main id="main"></main>
   <div id="chatModalRoot"></div>
+  <div id="groupChatModalRoot"></div>
   <div id="lightboxRoot"></div>
   <footer class="foot" id="foot">› Kho dữ liệu đồng bộ qua internet — Marketing và Sale thấy cùng một dữ liệu dù ở máy khác nhau.</footer>
 </div>
 <input type="file" id="fileInput" accept="image/*" style="display:none" />
 <input type="file" id="avatarFileInput" accept="image/*" style="display:none" />
 <input type="file" id="chatImageInput" accept="image/*" style="display:none" />
+<input type="file" id="groupChatImageInput" accept="image/*" style="display:none" />
 
 <script>
 const SALES = ['Cường', 'Bình', 'Hà', 'Minh', 'Lan'];
@@ -253,6 +256,7 @@ let profilesRef = null;
 let claimsRef = null;
 let readsRef = null;
 let versionRef = null;
+let groupChatRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -263,6 +267,7 @@ if (FIREBASE_ENABLED) {
     claimsRef = firebase.database().ref('claims');
     readsRef = firebase.database().ref('reads');
     versionRef = firebase.database().ref('appVersion');
+    groupChatRef = firebase.database().ref('groupChat');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -478,6 +483,8 @@ let state = {
   mktPage: 1, mktPageSize: 25,
   salePage: 1, salePageSize: 25,
   pendingAvatar: null,
+  groupChatOpen: false,
+  groupChatMessages: [],
   chatItem: null,
   chatMessages: [],
 };
@@ -978,6 +985,39 @@ if (chatsRef) {
   });
 }
 
+let knownGroupMsgKeys = null;
+if (groupChatRef) {
+  groupChatRef.on('value', (snap) => {
+    const val = snap.val() || {};
+    const list = Object.values(val).sort((a, b) => a.ts - b.ts);
+    state.groupChatMessages = list;
+    if (state.groupChatOpen) renderGroupChatModal();
+    updateGroupChatBadge();
+
+    const currentKeys = new Set(Object.keys(val));
+    if (knownGroupMsgKeys === null) { knownGroupMsgKeys = currentKeys; return; }
+    const me = myCurrentName();
+    const freshKeys = [...currentKeys].filter(k => !knownGroupMsgKeys.has(k));
+    knownGroupMsgKeys = currentKeys;
+    if (freshKeys.length && state.lockedRole) {
+      const freshMsgs = freshKeys.map(k => val[k]).filter(m => m && m.sender !== me);
+      if (freshMsgs.length && !state.groupChatOpen) {
+        playBeep();
+        const first = freshMsgs[0];
+        const body = freshMsgs.length === 1 ? `${first.sender}: ${first.text || '📷 đã gửi 1 ảnh'}` : `${freshMsgs.length} tin nhắn mới trong Chat nhóm`;
+        if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            const n = new Notification('💬 Chat nhóm có tin mới', { body });
+            n.onclick = () => { window.focus(); n.close(); };
+          } catch (e) {}
+        } else {
+          showToast(`💬 ${body}`, 'ok');
+        }
+      }
+    }
+  });
+}
+
 let allPins = {};
 if (pinsRef) {
   pinsRef.on('value', (snap) => {
@@ -1221,6 +1261,112 @@ async function sendChatImage(file) {
     }
   };
   reader.readAsDataURL(file);
+}
+
+// ---------- Chat nhóm (toàn đội, không gắn với 1 data cụ thể) ----------
+function openGroupChat() {
+  if (!groupChatRef) {
+    showToast('Cần bật kho dùng chung (Firebase) để dùng chat nhóm', 'warn');
+    return;
+  }
+  if (!myCurrentName()) {
+    showToast('Cần có tên để nhắn tin — vào lại đúng vai trò và nhập tên trước', 'warn');
+    return;
+  }
+  state.groupChatOpen = true;
+  renderGroupChatModal();
+  markChatRead('group');
+  updateGroupChatBadge();
+}
+
+function closeGroupChat() {
+  state.groupChatOpen = false;
+  document.getElementById('groupChatModalRoot').innerHTML = '';
+}
+
+async function sendGroupChatMessage() {
+  const input = document.getElementById('groupChatInput');
+  const text = input ? input.value.trim() : '';
+  if (!text || !groupChatRef) return;
+  const me = myCurrentName();
+  try {
+    await groupChatRef.push({ sender: me, role: state.role, text, ts: Date.now() });
+    if (input) input.value = '';
+  } catch (e) {
+    showToast('Gửi tin nhắn thất bại, kiểm tra mạng', 'warn');
+  }
+}
+
+async function sendGroupChatImage(file) {
+  if (!file || !file.type.startsWith('image/') || !groupChatRef) return;
+  const me = myCurrentName();
+  if (!me) { showToast('Cần có tên để nhắn tin', 'warn'); return; }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const resized = await resizeImage(e.target.result, 640, 0.7);
+    if (!resized) { showToast('Không đọc được ảnh, thử lại', 'warn'); return; }
+    const input = document.getElementById('groupChatInput');
+    const caption = input ? input.value.trim() : '';
+    try {
+      await groupChatRef.push({ sender: me, role: state.role, image: resized, text: caption || '', ts: Date.now() });
+      if (input) input.value = '';
+    } catch (err) {
+      showToast('Gửi ảnh thất bại, kiểm tra mạng', 'warn');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateGroupChatBadge() {
+  const badge = document.getElementById('groupChatBadge');
+  if (!badge) return;
+  const me = myCurrentName();
+  const lastRead = chatReadMap['group'] || 0;
+  const n = state.groupChatMessages.filter(m => m.ts > lastRead && m.sender !== me).length;
+  badge.innerHTML = n > 0 ? `<span class="chat-badge">${n}</span>` : '';
+}
+
+function renderGroupChatModal() {
+  const root = document.getElementById('groupChatModalRoot');
+  if (!state.groupChatOpen) { root.innerHTML = ''; return; }
+  const me = myCurrentName();
+  root.innerHTML = `
+    <div class="chat-overlay" id="groupChatOverlay">
+      <div class="chat-modal">
+        <div class="chat-header">
+          <div>
+            <div class="title">💬 Chat nhóm</div>
+            <div class="sub">Toàn đội Marketing + Sale + Quản trị</div>
+          </div>
+          <button class="chat-close" id="groupChatCloseBtn">✕</button>
+        </div>
+        <div class="chat-messages" id="groupChatMessagesList">
+          ${state.groupChatMessages.length === 0
+            ? '<div class="empty small">Chưa có tin nhắn nào. Gõ gì đó bên dưới để bắt đầu.</div>'
+            : state.groupChatMessages.map((m, mi) => `
+                <div style="display:flex;gap:8px;align-items:flex-end;${m.sender === me ? 'flex-direction:row-reverse;' : ''}">
+                  ${avatarHtml(m.sender, 24)}
+                  <div class="chat-msg ${m.sender === me ? 'mine' : 'theirs'}">
+                    <div class="who">${m.sender === me ? 'Bạn' : m.sender} · ${formatTime(m.ts)}</div>
+                    ${m.image ? `<img src="${m.image}" alt="Ảnh" data-zoom-group-msg="${mi}" style="max-width:180px;border-radius:8px;display:block;cursor:zoom-in;margin-top:2px;" />` : ''}
+                    ${m.text ? `<div style="${m.image ? 'margin-top:6px;' : ''}">${m.text}</div>` : ''}
+                  </div>
+                </div>
+              `).join('')
+          }
+        </div>
+        <div class="chat-input-row">
+          <button class="btn ghost" id="groupChatImageBtn" title="Gửi ảnh">🖼️</button>
+          <input class="input" id="groupChatInput" placeholder="Nhắn gì đó cho cả team…" />
+          <button class="btn primary" id="groupChatSendBtn">Gửi</button>
+        </div>
+      </div>
+    </div>
+  `;
+  const list = document.getElementById('groupChatMessagesList');
+  if (list) list.scrollTop = list.scrollHeight;
+  const input = document.getElementById('groupChatInput');
+  if (input) input.focus();
 }
 
 function renderChatModal() {
@@ -1963,6 +2109,18 @@ document.getElementById('app').addEventListener('click', async (e) => {
     window.location.href = url.toString();
     return;
   }
+  if (e.target.closest('#groupChatBtn')) { openGroupChat(); return; }
+  if (e.target.id === 'groupChatOverlay') { closeGroupChat(); return; }
+  if (e.target.closest('#groupChatCloseBtn')) { closeGroupChat(); return; }
+  if (e.target.closest('#groupChatSendBtn')) { sendGroupChatMessage(); return; }
+  if (e.target.closest('#groupChatImageBtn')) { document.getElementById('groupChatImageInput').click(); return; }
+  const zoomGroupMsg = e.target.closest('[data-zoom-group-msg]');
+  if (zoomGroupMsg) {
+    const mi = Number(zoomGroupMsg.dataset.zoomGroupMsg);
+    const msg = state.groupChatMessages[mi];
+    if (msg && msg.image) openLightbox(msg.image);
+    return;
+  }
   if (e.target.closest('#saleSearchToggleBtn')) {
     const wrap = document.getElementById('saleSearchWrap');
     const btn = document.getElementById('saleSearchToggleBtn');
@@ -2196,6 +2354,7 @@ document.getElementById('app').addEventListener('keydown', (e) => {
   if (e.target.id === 'setupMktNameInput' || e.target.id === 'setupMktPinInput') document.getElementById('setupMktConfirmBtn').click();
   if (e.target.id === 'setupAdminNameInput' || e.target.id === 'setupAdminPinInput') document.getElementById('setupAdminConfirmBtn').click();
   if (e.target.id === 'chatInput') { e.preventDefault(); document.getElementById('chatSendBtn').click(); }
+  if (e.target.id === 'groupChatInput') { e.preventDefault(); document.getElementById('groupChatSendBtn').click(); }
 });
 
 document.getElementById('app').addEventListener('input', (e) => {
@@ -2244,8 +2403,23 @@ document.getElementById('chatImageInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
+document.getElementById('groupChatImageInput').addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) sendGroupChatImage(e.target.files[0]);
+  e.target.value = '';
+});
+
 document.addEventListener('paste', (e) => {
   const items = (e.clipboardData || window.clipboardData).items;
+  if (state.groupChatOpen) {
+    for (const it of items) {
+      if (it.type.indexOf('image') !== -1) {
+        sendGroupChatImage(it.getAsFile());
+        e.preventDefault();
+        break;
+      }
+    }
+    return;
+  }
   if (state.chatItem) {
     for (const it of items) {
       if (it.type.indexOf('image') !== -1) {
