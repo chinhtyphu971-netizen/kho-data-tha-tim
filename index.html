@@ -1957,16 +1957,20 @@ function renderPinsSection() {
   const renderCol = (title, list) => `
     <div style="flex:1;min-width:220px;background:#0D1526;border-radius:10px;padding:12px 14px;">
       <div style="font-size:12.5px;color:#7C89A6;margin-bottom:8px;font-weight:600;">${title} (${list.length})</div>
-      <div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;">
+      <div style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:4px;">
         ${list.length === 0 ? '<div class="empty small">Chưa có ai.</div>' : list.map((k, i) => `
-          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">
-            <span class="muted" style="min-width:18px;">${i + 1}.</span>
-            ${avatarHtmlByKey(k, 22)}
-            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${k}</span>
-            <span class="ticket" style="min-width:auto;">PIN: <b class="pin-mask" data-toggle-pin style="color:#EAF0FF;"><span class="pin-dots">••••••</span><span class="pin-real">${pinInfo(k).pin}</span></b></span>
-            <button class="copy-btn" data-copy-text="${pinInfo(k).pin}" title="Copy PIN">📋</button>
-            <button class="btn ghost small" data-reset-pin="${k}" title="Reset PIN — họ cần đặt PIN mới ở lần vào tiếp theo">↺ Reset</button>
-            <button class="btn ghost small" data-delete-person="${k}" title="Xoá vĩnh viễn khỏi danh sách" style="color:#FF8A93;">🗑️ Xoá</button>
+          <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span class="muted" style="min-width:16px;font-size:12px;">${i + 1}.</span>
+              ${avatarHtmlByKey(k, 22)}
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px;">${k}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;padding-left:26px;flex-wrap:wrap;">
+              <span class="ticket" style="min-width:auto;">PIN: <b class="pin-mask" data-toggle-pin style="color:#EAF0FF;"><span class="pin-dots">••••••</span><span class="pin-real">${pinInfo(k).pin}</span></b></span>
+              <button class="copy-btn" data-copy-text="${pinInfo(k).pin}" title="Copy PIN">📋</button>
+              <button class="btn ghost small" data-reset-pin="${k}" title="Reset PIN — họ cần đặt PIN mới ở lần vào tiếp theo">↺ Reset</button>
+              <button class="btn ghost small" data-delete-person="${k}" title="Xoá vĩnh viễn khỏi danh sách" style="color:#FF8A93;">🗑️ Xoá</button>
+            </div>
           </div>
         `).join('')}
       </div>
