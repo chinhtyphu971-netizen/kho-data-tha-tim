@@ -485,6 +485,8 @@ let state = {
   salePage: 1, salePageSize: 25,
   pendingAvatar: null,
   groupChatOpen: false,
+  pendingChatImage: null,
+  pendingGroupChatImage: null,
   groupNotifyEnabled: safeGet(GROUP_NOTIFY_KEY) !== '0',
   groupChatMessages: [],
   chatItem: null,
@@ -1227,49 +1229,37 @@ function closeChat() {
   chatListenerItemId = null;
   state.chatItem = null;
   state.chatMessages = [];
+  state.pendingChatImage = null;
   document.getElementById('chatModalRoot').innerHTML = '';
 }
 
 async function sendChatMessage() {
   const input = document.getElementById('chatInput');
   const text = input ? input.value.trim() : '';
-  if (!text || !state.chatItem) return;
+  if (!text && !state.pendingChatImage) return;
+  if (!state.chatItem) return;
   const me = myCurrentName();
   try {
-    await chatsRef.child(String(state.chatItem.id)).push({
-      sender: me,
-      role: state.role,
-      text,
-      ts: Date.now(),
-    });
+    const payload = { sender: me, role: state.role, text: text || '', ts: Date.now() };
+    if (state.pendingChatImage) payload.image = state.pendingChatImage;
+    await chatsRef.child(String(state.chatItem.id)).push(payload);
     if (input) input.value = '';
+    state.pendingChatImage = null;
   } catch (e) {
     showToast('Gửi tin nhắn thất bại, kiểm tra mạng', 'warn');
   }
 }
 
-async function sendChatImage(file) {
-  if (!file || !file.type.startsWith('image/') || !state.chatItem || !chatsRef) return;
+function stageChatImage(file) {
+  if (!file || !file.type.startsWith('image/') || !state.chatItem) return;
   const me = myCurrentName();
   if (!me) { showToast('Cần có tên để nhắn tin', 'warn'); return; }
   const reader = new FileReader();
   reader.onload = async (e) => {
     const resized = await resizeImage(e.target.result, 640, 0.7);
     if (!resized) { showToast('Không đọc được ảnh, thử lại', 'warn'); return; }
-    const input = document.getElementById('chatInput');
-    const caption = input ? input.value.trim() : '';
-    try {
-      await chatsRef.child(String(state.chatItem.id)).push({
-        sender: me,
-        role: state.role,
-        image: resized,
-        text: caption || '',
-        ts: Date.now(),
-      });
-      if (input) input.value = '';
-    } catch (err) {
-      showToast('Gửi ảnh thất bại, kiểm tra mạng', 'warn');
-    }
+    state.pendingChatImage = resized;
+    renderChatModal();
   };
   reader.readAsDataURL(file);
 }
@@ -1292,23 +1282,28 @@ function openGroupChat() {
 
 function closeGroupChat() {
   state.groupChatOpen = false;
+  state.pendingGroupChatImage = null;
   document.getElementById('groupChatModalRoot').innerHTML = '';
 }
 
 async function sendGroupChatMessage() {
   const input = document.getElementById('groupChatInput');
   const text = input ? input.value.trim() : '';
-  if (!text || !groupChatRef) return;
+  if (!text && !state.pendingGroupChatImage) return;
+  if (!groupChatRef) return;
   const me = myGroupChatName();
   try {
-    await groupChatRef.push({ sender: me, role: state.lockedRole, text, ts: Date.now() });
+    const payload = { sender: me, role: state.lockedRole, text: text || '', ts: Date.now() };
+    if (state.pendingGroupChatImage) payload.image = state.pendingGroupChatImage;
+    await groupChatRef.push(payload);
     if (input) input.value = '';
+    state.pendingGroupChatImage = null;
   } catch (e) {
     showToast('Gửi tin nhắn thất bại, kiểm tra mạng', 'warn');
   }
 }
 
-async function sendGroupChatImage(file) {
+function stageGroupChatImage(file) {
   if (!file || !file.type.startsWith('image/') || !groupChatRef) return;
   const me = myGroupChatName();
   if (!me) { showToast('Cần có tên để nhắn tin', 'warn'); return; }
@@ -1316,14 +1311,8 @@ async function sendGroupChatImage(file) {
   reader.onload = async (e) => {
     const resized = await resizeImage(e.target.result, 640, 0.7);
     if (!resized) { showToast('Không đọc được ảnh, thử lại', 'warn'); return; }
-    const input = document.getElementById('groupChatInput');
-    const caption = input ? input.value.trim() : '';
-    try {
-      await groupChatRef.push({ sender: me, role: state.lockedRole, image: resized, text: caption || '', ts: Date.now() });
-      if (input) input.value = '';
-    } catch (err) {
-      showToast('Gửi ảnh thất bại, kiểm tra mạng', 'warn');
-    }
+    state.pendingGroupChatImage = resized;
+    renderGroupChatModal();
   };
   reader.readAsDataURL(file);
 }
@@ -1369,6 +1358,13 @@ function renderGroupChatModal() {
               `).join('')
           }
         </div>
+        ${state.pendingGroupChatImage ? `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid rgba(255,255,255,0.06);">
+            <img src="${state.pendingGroupChatImage}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;" alt="Ảnh chờ gửi" />
+            <span class="muted" style="font-size:12px;flex:1;">Ảnh sẵn sàng gửi — bấm "Gửi" để gửi đi</span>
+            <button id="groupChatCancelImageBtn" class="copy-btn" title="Huỷ ảnh">✕</button>
+          </div>
+        ` : ''}
         <div class="chat-input-row">
           <button class="btn ghost" id="groupChatImageBtn" title="Gửi ảnh">🖼️</button>
           <input class="input" id="groupChatInput" placeholder="Nhắn gì đó cho cả team…" />
@@ -1433,6 +1429,13 @@ function renderChatModal() {
               `).join('')
           }
         </div>
+        ${state.pendingChatImage ? `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid rgba(255,255,255,0.06);">
+            <img src="${state.pendingChatImage}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;" alt="Ảnh chờ gửi" />
+            <span class="muted" style="font-size:12px;flex:1;">Ảnh sẵn sàng gửi — bấm "Gửi" để gửi đi</span>
+            <button id="chatCancelImageBtn" class="copy-btn" title="Huỷ ảnh">✕</button>
+          </div>
+        ` : ''}
         <div class="chat-input-row">
           <button class="btn ghost" id="chatImageBtn" title="Gửi ảnh">🖼️</button>
           <input class="input" id="chatInput" placeholder="Nhắn gì đó…" />
@@ -2135,6 +2138,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
   }
   if (e.target.closest('#groupChatSendBtn')) { sendGroupChatMessage(); return; }
   if (e.target.closest('#groupChatImageBtn')) { document.getElementById('groupChatImageInput').click(); return; }
+  if (e.target.closest('#groupChatCancelImageBtn')) { state.pendingGroupChatImage = null; renderGroupChatModal(); return; }
   const zoomGroupMsg = e.target.closest('[data-zoom-group-msg]');
   if (zoomGroupMsg) {
     const mi = Number(zoomGroupMsg.dataset.zoomGroupMsg);
@@ -2308,6 +2312,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
   if (e.target.closest('#chatCloseBtn')) { closeChat(); return; }
   if (e.target.closest('#chatSendBtn')) { sendChatMessage(); return; }
   if (e.target.closest('#chatImageBtn')) { document.getElementById('chatImageInput').click(); return; }
+  if (e.target.closest('#chatCancelImageBtn')) { state.pendingChatImage = null; renderChatModal(); return; }
   const zoomChatMsg = e.target.closest('[data-zoom-chat-msg]');
   if (zoomChatMsg) {
     const mi = Number(zoomChatMsg.dataset.zoomChatMsg);
@@ -2420,12 +2425,12 @@ document.getElementById('avatarFileInput').addEventListener('change', (e) => {
 });
 
 document.getElementById('chatImageInput').addEventListener('change', (e) => {
-  if (e.target.files && e.target.files[0]) sendChatImage(e.target.files[0]);
+  if (e.target.files && e.target.files[0]) stageChatImage(e.target.files[0]);
   e.target.value = '';
 });
 
 document.getElementById('groupChatImageInput').addEventListener('change', (e) => {
-  if (e.target.files && e.target.files[0]) sendGroupChatImage(e.target.files[0]);
+  if (e.target.files && e.target.files[0]) stageGroupChatImage(e.target.files[0]);
   e.target.value = '';
 });
 
@@ -2434,7 +2439,7 @@ document.addEventListener('paste', (e) => {
   if (state.groupChatOpen) {
     for (const it of items) {
       if (it.type.indexOf('image') !== -1) {
-        sendGroupChatImage(it.getAsFile());
+        stageGroupChatImage(it.getAsFile());
         e.preventDefault();
         break;
       }
@@ -2444,7 +2449,7 @@ document.addEventListener('paste', (e) => {
   if (state.chatItem) {
     for (const it of items) {
       if (it.type.indexOf('image') !== -1) {
-        sendChatImage(it.getAsFile());
+        stageChatImage(it.getAsFile());
         e.preventDefault();
         break;
       }
