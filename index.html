@@ -499,6 +499,7 @@ let state = {
   mktPage: 1, mktPageSize: 25,
   salePage: 1, salePageSize: 25,
   saleDayPage: 1, saleDaysPerPage: 3,
+  mktDayPage: 1, mktDaysPerPage: 3,
   pinsSortMode: 'newest',
   pendingAvatar: null,
   groupChatOpen: false,
@@ -2090,24 +2091,70 @@ function renderDynamic() {
 
     const logList = document.getElementById('logList');
     if (logList) {
-      const { pageItems: mktPageItems, totalPages: mktTotalPages, page: mktPageNum, total: mktTotal } = paginate(mineFiltered, state.mktPage, state.mktPageSize);
-      state.mktPage = mktPageNum;
-      logList.innerHTML = mineFiltered.length === 0 ? '<div class="empty small">Không có data khớp bộ lọc.</div>' :
-        mktPageItems.map(it => `
-          <div class="log-row">
-            ${it.qrImage ? `<img src="${it.qrImage}" alt="QR" data-zoom-item="${it.id}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;cursor:zoom-in;flex-shrink:0;" />` : ''}
-            <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
-            <span class="log-name">${it.name}</span>
-            <span class="status ${it.claimedBy ? 'locked' : 'pending'}">${it.claimedBy ? `🔒 ${it.claimedBy}` : 'Đang chờ'}</span>
-            ${it.claimedBy ? (() => {
-              const n = getUnreadCount(it.id);
-              return `<button class="chat-btn ${n > 0 ? 'has-unread' : ''}" data-chat="${it.id}">💬 Trao đổi${n > 0 ? `<span class="chat-badge">${n}</span>` : ''}</button>`;
-            })() : ''}
-            <span class="log-time">${formatTime(it.createdAt)}</span>
-          </div>
-        `).join('');
-      const mktPaginationEl = document.getElementById('mktPagination');
-      if (mktPaginationEl) mktPaginationEl.innerHTML = paginationHtml('mkt', mktPageNum, mktTotalPages, state.mktPageSize, mktTotal);
+      if (mineFiltered.length === 0) {
+        logList.innerHTML = '<div class="empty small">Không có data khớp bộ lọc.</div>';
+        const mktPaginationElEmpty = document.getElementById('mktPagination');
+        if (mktPaginationElEmpty) mktPaginationElEmpty.innerHTML = '';
+      } else {
+        const sortedFiltered = mineFiltered.slice().sort((a, b) => b.createdAt - a.createdAt);
+        const dayGroups = {};
+        const dayKeys = [];
+        sortedFiltered.forEach(it => {
+          const d = new Date(it.createdAt);
+          const key = d.toDateString();
+          if (!dayGroups[key]) {
+            dayGroups[key] = { label: d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }), items: [] };
+            dayKeys.push(key);
+          }
+          dayGroups[key].items.push(it);
+        });
+        const { pageItems: pageDayKeys, totalPages: mktTotalPages, page: mktPageNum, total: mktTotal } = paginate(dayKeys, state.mktDayPage, state.mktDaysPerPage);
+        state.mktDayPage = mktPageNum;
+        logList.innerHTML = `
+          ${pageDayKeys.map(key => {
+            const g = dayGroups[key];
+            return `
+              <div style="margin-bottom:14px;">
+                <div style="font-size:12.5px;font-weight:650;color:#7C89A6;margin-bottom:6px;">📅 ${g.label} (${g.items.length} data)</div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  ${g.items.map(it => `
+                    <div class="log-row">
+                      ${it.qrImage ? `<img src="${it.qrImage}" alt="QR" data-zoom-item="${it.id}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;cursor:zoom-in;flex-shrink:0;" />` : ''}
+                      <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
+                      <span class="log-name">${it.name}</span>
+                      <span class="status ${it.claimedBy ? 'locked' : 'pending'}">${it.claimedBy ? `🔒 ${it.claimedBy}` : 'Đang chờ'}</span>
+                      ${it.claimedBy ? (() => {
+                        const n = getUnreadCount(it.id);
+                        return `<button class="chat-btn ${n > 0 ? 'has-unread' : ''}" data-chat="${it.id}">💬 Trao đổi${n > 0 ? `<span class="chat-badge">${n}</span>` : ''}</button>`;
+                      })() : ''}
+                      <span class="log-time">${formatTime(it.createdAt)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        `;
+        const mktPaginationEl = document.getElementById('mktPagination');
+        if (mktPaginationEl) {
+          mktPaginationEl.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:8px;">
+              <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#7C89A6;">
+                Số ngày/trang:
+                <select class="select" id="mktDaysPerPageSelect" style="padding:4px 8px;">
+                  ${[1,3,5,7].map(n => `<option value="${n}" ${n===state.mktDaysPerPage?'selected':''}>${n}</option>`).join('')}
+                </select>
+                <span>(${mktTotal} ngày, ${mineFiltered.length} data)</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn ghost small" data-mkt-day-prev ${mktPageNum<=1?'disabled':''}>‹ Trước</button>
+                <span style="font-size:12.5px;color:#7C89A6;">Trang ${mktPageNum}/${mktTotalPages}</span>
+                <button class="btn ghost small" data-mkt-day-next ${mktPageNum>=mktTotalPages?'disabled':''}>Sau ›</button>
+              </div>
+            </div>
+          `;
+        }
+      }
     }
   } else if (state.role === 'sale') {
     renderUnreadOrdersBox('saleUnreadChats');
@@ -2583,11 +2630,22 @@ document.getElementById('app').addEventListener('click', async (e) => {
     renderDynamic();
     return;
   }
+  if (e.target.closest('[data-mkt-day-prev]')) {
+    state.mktDayPage = Math.max(1, state.mktDayPage - 1);
+    renderDynamic();
+    return;
+  }
+  if (e.target.closest('[data-mkt-day-next]')) {
+    state.mktDayPage += 1;
+    renderDynamic();
+    return;
+  }
   const pinMask = e.target.closest('[data-toggle-pin]');
   if (pinMask) { pinMask.classList.toggle('revealed'); return; }
   if (e.target.closest('#mktFilterClearBtn')) {
     ['mktFilterSearch', 'mktFilterFrom', 'mktFilterTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     const s = document.getElementById('mktFilterStatus'); if (s) s.value = '';
+    state.mktDayPage = 1;
     renderDynamic();
     return;
   }
@@ -2611,7 +2669,7 @@ document.getElementById('app').addEventListener('keydown', (e) => {
 document.getElementById('app').addEventListener('input', (e) => {
   if (e.target.id === 'saleSearchInput') { state.salePage = 1; renderDynamic(); }
   if (e.target.id === 'filterSearch') { state.adminPage = 1; renderDynamic(); }
-  if (e.target.id === 'mktFilterSearch') { state.mktPage = 1; renderDynamic(); }
+  if (e.target.id === 'mktFilterSearch') { state.mktPage = 1; state.mktDayPage = 1; renderDynamic(); }
   if (e.target.id === 'pinsSearchInput') renderDynamic();
 });
 
@@ -2627,7 +2685,7 @@ document.getElementById('app').addEventListener('change', (e) => {
   const mktIds = ['mktFilterStatus', 'mktFilterFrom', 'mktFilterTo'];
   const saleIds = ['saleFilterFrom', 'saleFilterTo'];
   if (adminIds.includes(e.target.id)) { state.adminPage = 1; renderDynamic(); }
-  if (mktIds.includes(e.target.id)) { state.mktPage = 1; renderDynamic(); }
+  if (mktIds.includes(e.target.id)) { state.mktPage = 1; state.mktDayPage = 1; renderDynamic(); }
   if (saleIds.includes(e.target.id)) { state.salePage = 1; renderDynamic(); }
   if (e.target.dataset && e.target.dataset.pageSize) {
     const p = e.target.dataset.pageSize;
@@ -2640,6 +2698,11 @@ document.getElementById('app').addEventListener('change', (e) => {
   if (e.target.id === 'saleDaysPerPageSelect') {
     state.saleDaysPerPage = Number(e.target.value) || 3;
     state.saleDayPage = 1;
+    renderDynamic();
+  }
+  if (e.target.id === 'mktDaysPerPageSelect') {
+    state.mktDaysPerPage = Number(e.target.value) || 3;
+    state.mktDayPage = 1;
     renderDynamic();
   }
   if (e.target.id === 'pinsSortSelect') {
