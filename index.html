@@ -263,6 +263,7 @@ let versionRef = null;
 let groupChatRef = null;
 let chatMetaRef = null;
 let trashRef = null;
+let roleChangeLogRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -276,6 +277,7 @@ if (FIREBASE_ENABLED) {
     groupChatRef = firebase.database().ref('groupChat');
     chatMetaRef = firebase.database().ref('chatMeta');
     trashRef = firebase.database().ref('trash');
+    roleChangeLogRef = firebase.database().ref('roleChangeLog');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -1132,6 +1134,14 @@ if (trashRef) {
   });
 }
 
+let allRoleChangeLog = {};
+if (roleChangeLogRef) {
+  roleChangeLogRef.on('value', (snap) => {
+    allRoleChangeLog = snap.val() || {};
+    if (state.lockedRole === 'admin' && state.role === 'admin') renderDynamic();
+  });
+}
+
 let allProfiles = {};
 function refreshNamePillsAndBadge() {
   const mktPill = document.getElementById('mktNamePill');
@@ -1255,10 +1265,37 @@ function deletePersonPermanently(key) {
 
 function changePersonRole(key, newRole) {
   if (!pinsRef) return;
+  const myName = state.adminName || '';
+  const myKey = pinKey(myName);
+  const myPin = pinInfo(myKey).pin;
+  if (!myKey || !myPin) {
+    showToast('Cần đăng ký tên + PIN Quản trị trước đã', 'warn');
+    renderPinsSection();
+    return;
+  }
+  const oldRole = pinInfo(key).role || '(chưa rõ)';
   const roleLabel = newRole === 'marketing' ? 'Marketing' : newRole === 'sale' ? 'Sale' : 'Quản trị';
+  const entered = prompt(`Xác nhận đổi "${key}" sang nhóm ${roleLabel}.\nNhập lại đúng PIN CỦA BẠN (${myName}) để xác nhận:`);
+  if (entered === null) { renderPinsSection(); return; }
+  if (entered !== myPin) {
+    showToast('Sai PIN của bạn — huỷ thao tác đổi nhóm', 'warn');
+    renderPinsSection();
+    return;
+  }
   pinsRef.child(key).update({ role: newRole })
-    .then(() => showToast(`Đã chuyển "${key}" sang nhóm ${roleLabel}`, 'ok'))
-    .catch(() => showToast('Chuyển nhóm thất bại, kiểm tra mạng', 'warn'));
+    .then(() => {
+      showToast(`Đã chuyển "${key}" sang nhóm ${roleLabel}`, 'ok');
+      if (roleChangeLogRef) {
+        roleChangeLogRef.push({
+          person: key,
+          oldRole: oldRole,
+          newRole: newRole,
+          changedBy: myName,
+          changedAt: Date.now(),
+        }).catch(() => {});
+      }
+    })
+    .catch(() => { showToast('Chuyển nhóm thất bại, kiểm tra mạng', 'warn'); renderPinsSection(); });
 }
 
 function openLightbox(dataUrl) {
@@ -1848,6 +1885,10 @@ function renderShell() {
           </select>
         </div>
         <div id="pinsSection" style="margin-bottom:20px;"></div>
+        <details style="margin-bottom:20px;">
+          <summary style="cursor:pointer;font-size:12.5px;color:#7C89A6;">🕘 Lịch sử đổi vai trò (bấm để xem)</summary>
+          <div id="roleChangeLogSection" style="margin-top:10px;"></div>
+        </details>
         <h3 class="sub-head">Chi tiết</h3>
         <div class="table" id="adminTable"></div>
         <div id="adminPagination"></div>
@@ -1968,6 +2009,28 @@ function renderTrashSection() {
           </div>
         `;
       }).join('')}
+    </div>
+  `;
+}
+
+function renderRoleChangeLog() {
+  const el = document.getElementById('roleChangeLogSection');
+  if (!el) return;
+  const roleShort = (r) => r === 'marketing' ? '📣 Marketing' : r === 'sale' ? '❤️ Sale' : r === 'admin' ? '🛡️ Quản trị' : (r || '(chưa rõ)');
+  const entries = Object.values(allRoleChangeLog).sort((a, b) => (b.changedAt || 0) - (a.changedAt || 0));
+  if (entries.length === 0) {
+    el.innerHTML = '<div class="empty small">Chưa có thay đổi vai trò nào.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;">
+      ${entries.map(entry => `
+        <div class="log-row" style="flex-wrap:wrap;">
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${entry.person}</span>
+          <span class="muted" style="font-size:11.5px;">${roleShort(entry.oldRole)} → ${roleShort(entry.newRole)}</span>
+          <span class="muted" style="font-size:11.5px;">bởi ${entry.changedBy || '?'} · ${formatTime(entry.changedAt)}</span>
+        </div>
+      `).join('')}
     </div>
   `;
 }
@@ -2296,6 +2359,7 @@ function renderDynamic() {
     renderSyncBanner();
     renderPinsSection();
     renderTrashSection();
+    renderRoleChangeLog();
     updateFilterOptions(items);
     const filtered = getFilteredItems(items);
     renderStats(filtered);
