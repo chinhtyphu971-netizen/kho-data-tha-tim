@@ -2011,10 +2011,10 @@ function renderPinsSection() {
             <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;">${k}</span>
             <span class="pin-mask" data-toggle-pin style="font-size:11.5px;color:#7C89A6;white-space:nowrap;"><span class="pin-dots">••••••</span><span class="pin-real" style="color:#EAF0FF;">${pinInfo(k).pin}</span></span>
             <button class="copy-btn" data-copy-text="${pinInfo(k).pin}" title="Copy PIN" style="padding:2px 3px;">📋</button>
-            <select data-change-role="${k}" title="Chuyển sang nhóm khác" style="background:#0D1526;border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:#EAF0FF;font-size:11px;padding:3px 4px;flex-shrink:0;">
-              <option value="marketing" ${pinInfo(k).role==='marketing'?'selected':''}>📣 MKT</option>
-              <option value="sale" ${pinInfo(k).role==='sale'?'selected':''}>❤️ Sale</option>
-              <option value="admin" ${pinInfo(k).role==='admin'?'selected':''}>🛡️ QTV</option>
+            <select data-change-role="${k}" title="Chuyển sang nhóm khác" style="background:#0D1526;border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:#EAF0FF;font-size:12px;padding:3px 2px;flex-shrink:0;width:30px;">
+              <option value="marketing" ${pinInfo(k).role==='marketing'?'selected':''}>📣</option>
+              <option value="sale" ${pinInfo(k).role==='sale'?'selected':''}>❤️</option>
+              <option value="admin" ${pinInfo(k).role==='admin'?'selected':''}>🛡️</option>
             </select>
             <button data-reset-pin="${k}" title="Reset PIN — họ cần đặt PIN mới ở lần vào tiếp theo" style="background:none;border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:#EAF0FF;font-size:11px;padding:3px 6px;cursor:pointer;white-space:nowrap;flex-shrink:0;">↺</button>
             <button data-delete-person="${k}" title="Xoá vĩnh viễn khỏi danh sách" style="background:none;border:1px solid rgba(255,71,87,0.3);border-radius:6px;color:#FF8A93;font-size:11px;padding:3px 6px;cursor:pointer;white-space:nowrap;flex-shrink:0;">🗑️</button>
