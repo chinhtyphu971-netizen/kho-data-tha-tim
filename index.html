@@ -82,6 +82,41 @@
   .status.pending { color: #FFC93C; }
   .status.locked { color: #35D07F; }
   .log-time { color: #556; font-size: 12px; min-width: 62px; text-align: right; }
+
+  /* ---- Log-row (MKT): căn cột cố định để bảng thẳng hàng dù có/không có ảnh QR ---- */
+  .log-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0,1fr) 200px 68px;
+    gap: 14px;
+    align-items: center;
+    transition: background 0.12s ease;
+  }
+  .log-row:hover { background: #101B32; }
+  .log-thumb {
+    width: 34px; height: 34px; border-radius: 7px; object-fit: cover; flex-shrink: 0;
+    background: #0A1120; display: flex; align-items: center; justify-content: center;
+    color: #3A4560; font-size: 14px; border: 1px solid rgba(255,255,255,0.05);
+  }
+  .log-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .log-name-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .log-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+  .log-row .status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log-row .chat-btn { padding: 6px 8px; font-size: 11.5px; white-space: nowrap; flex-shrink: 0; }
+  .mkt-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .mkt-stat { flex: 1; min-width: 120px; background: #0D1526; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 14px; }
+  .mkt-stat .n { font-size: 19px; font-weight: 700; line-height: 1.2; }
+  .mkt-stat .l { font-size: 11.5px; color: #7C89A6; margin-top: 2px; }
+  @media (max-width: 640px) {
+    .log-row {
+      grid-template-columns: 30px minmax(0,1fr);
+      grid-template-areas: "thumb main" "thumb meta" "thumb time";
+      row-gap: 5px;
+    }
+    .log-thumb { grid-area: thumb; }
+    .log-main { grid-area: main; }
+    .log-meta { grid-area: meta; }
+    .log-time { grid-area: time; text-align: left; min-width: 0; }
+  }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   .card { background: #0D1526; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .card.pulse { animation: pulse 1.6s ease-in-out 2; }
@@ -1756,6 +1791,7 @@ function renderShell() {
           </div>
         </div>
         <h3 class="sub-head">Đã gửi gần đây</h3>
+        <div class="mkt-stats" id="mktStatsBar"></div>
         <div class="filter-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
           <input class="input" id="mktFilterSearch" placeholder="Tìm tên khách / nguồn…" style="max-width:180px;" />
           <select class="select" id="mktFilterStatus">
@@ -2149,8 +2185,21 @@ function renderDynamic() {
     renderUnreadOrdersBox('mktUnreadChats');
     const mine = items.filter(it => it.sentBy === state.mktName);
     const minePending = mine.filter(it => !it.claimedBy);
+    const mineClaimed = mine.length - minePending.length;
     const pill = document.getElementById('pendingPill');
     if (pill) pill.textContent = `📡 ${minePending.length} đang chờ nhận`;
+
+    const statsBar = document.getElementById('mktStatsBar');
+    if (statsBar) {
+      const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+      const mineToday = mine.filter(it => it.createdAt >= todayStart.getTime()).length;
+      statsBar.innerHTML = `
+        <div class="mkt-stat"><div class="n">${mine.length}</div><div class="l">Tổng data đã gửi</div></div>
+        <div class="mkt-stat"><div class="n">${mineToday}</div><div class="l">Gửi hôm nay</div></div>
+        <div class="mkt-stat"><div class="n" style="color:#FFC93C;">${minePending.length}</div><div class="l">Đang chờ nhận</div></div>
+        <div class="mkt-stat"><div class="n" style="color:#35D07F;">${mineClaimed}</div><div class="l">Đã được khóa</div></div>
+      `;
+    }
 
     const mSearch = (document.getElementById('mktFilterSearch')?.value || '').trim().toLowerCase();
     const mStatus = document.getElementById('mktFilterStatus')?.value || '';
@@ -2195,14 +2244,21 @@ function renderDynamic() {
                 <div style="display:flex;flex-direction:column;gap:6px;">
                   ${g.items.map(it => `
                     <div class="log-row">
-                      ${it.qrImage ? `<img src="${it.qrImage}" alt="QR" data-zoom-item="${it.id}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;cursor:zoom-in;flex-shrink:0;" />` : ''}
-                      <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
-                      <span class="log-name">${it.name}</span>
-                      <span class="status ${it.claimedBy ? 'locked' : 'pending'}">${it.claimedBy ? `🔒 ${it.claimedBy}` : 'Đang chờ'}</span>
-                      ${it.claimedBy ? (() => {
-                        const n = getUnreadCount(it.id);
-                        return `<button class="chat-btn ${n > 0 ? 'has-unread' : ''}" data-chat="${it.id}">💬 Trao đổi${n > 0 ? `<span class="chat-badge">${n}</span>` : ''}</button>`;
-                      })() : ''}
+                      ${it.qrImage
+                        ? `<img class="log-thumb" src="${it.qrImage}" alt="QR" data-zoom-item="${it.id}" style="cursor:zoom-in;" />`
+                        : `<div class="log-thumb">·</div>`
+                      }
+                      <div class="log-main">
+                        <span class="ticket">#${String(it.id).padStart(6,'0')}</span>
+                        <span class="log-name-cell">${it.name}</span>
+                      </div>
+                      <div class="log-meta">
+                        <span class="status ${it.claimedBy ? 'locked' : 'pending'}">${it.claimedBy ? `🔒 ${it.claimedBy}` : '🕓 Đang chờ'}</span>
+                        ${it.claimedBy ? (() => {
+                          const n = getUnreadCount(it.id);
+                          return `<button class="chat-btn ${n > 0 ? 'has-unread' : ''}" data-chat="${it.id}">💬 Trao đổi${n > 0 ? `<span class="chat-badge">${n}</span>` : ''}</button>`;
+                        })() : ''}
+                      </div>
                       <span class="log-time">${formatTime(it.createdAt)}</span>
                     </div>
                   `).join('')}
