@@ -2194,12 +2194,14 @@ function renderDynamic() {
       const todayStart = new Date(); todayStart.setHours(0,0,0,0);
       const mineToday = mine.filter(it => it.createdAt >= todayStart.getTime()).length;
       const mineWithQr = mine.filter(it => !!it.qrImage).length;
+      const mineQrToday = mine.filter(it => it.createdAt >= todayStart.getTime() && !!it.qrImage).length;
       statsBar.innerHTML = `
         <div class="mkt-stat"><div class="n">${mine.length}</div><div class="l">Tổng data đã gửi</div></div>
         <div class="mkt-stat"><div class="n">${mineToday}</div><div class="l">Gửi hôm nay</div></div>
         <div class="mkt-stat"><div class="n" style="color:#FFC93C;">${minePending.length}</div><div class="l">Đang chờ nhận</div></div>
         <div class="mkt-stat"><div class="n" style="color:#35D07F;">${mineClaimed}</div><div class="l">Đã được khóa</div></div>
         <div class="mkt-stat"><div class="n" style="color:#7fb8ff;">${mineWithQr}</div><div class="l">Có ảnh QR</div></div>
+        <div class="mkt-stat"><div class="n" style="color:#7fb8ff;">${mineQrToday}</div><div class="l">QR ảnh hôm nay</div></div>
       `;
     }
 
