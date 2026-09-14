@@ -492,6 +492,12 @@ function tableCell(text, extraClass) {
   const cls = extraClass ? ` ${extraClass}` : '';
   const raw = text || '';
   if (!raw) return `<span class="cell-ellipsis muted">—</span>`;
+  const isLong = raw.length > 24 || /^https?:\/\//i.test(raw.trim());
+  if (!isLong) {
+    // Text ngắn (sđt, tên...) — hiện y như cũ, không rút gọn không nút copy để khỏi choán chỗ.
+    return `<span class="${extraClass || ''}">${raw}</span>`;
+  }
+  // Chỉ link/text dài mới rút gọn 1 dòng + nút copy.
   return `<div class="cell-copy-wrap">
     <span class="cell-ellipsis${cls}" title="${escAttr(raw)}">${raw}</span>
     <button class="copy-btn" data-copy-text="${escAttr(raw)}" title="Copy">📋</button>
