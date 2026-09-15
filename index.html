@@ -657,6 +657,19 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="personLeadsModal">
+  <div class="modal" style="max-width:720px;">
+    <h2 id="personLeadsModalTitle">Data của...</h2>
+    <p id="personLeadsModalSub" style="color:var(--ink-soft); font-size:13.5px; margin-top:-4px;"></p>
+    <div style="max-height:60vh; overflow-y:auto; margin-top:10px;">
+      <div class="table-wrap"><table id="personLeadsModalTable" class="rtable"></table></div>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" onclick="closePersonLeadsModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="noteModal">
   <div class="modal" style="max-width:380px;">
     <h2>Ghi chú</h2>
@@ -1237,9 +1250,42 @@ function renderLeadStatsDetail(inRange){
   body.innerHTML = ids.map(id=>{
     const u = state.users.find(x=>x.id===id);
     const b = byPerson[id];
-    return `<div class="detail-row"><span class="k">${u?u.name:'(đã xoá)'}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
+    return `<div class="detail-row"><span class="k history-link" onclick="openPersonLeadsModal('${id}')">${u?u.name:'(đã xoá)'}</span><span class="v">${b.total} data · <span style="color:${b.unprocessed>0?'var(--danger)':'var(--success)'};">${b.unprocessed} chưa xử lý</span></span></div>`;
   }).join('');
 }
+function openPersonLeadsModal(userId){
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  const leads = state.leads.filter(l=>{
+    if(l.assignedTo!==userId || !l.assignedAt) return false;
+    const d = toLocalDateStr(new Date(l.assignedAt));
+    if(leadStatsDateFrom && d < leadStatsDateFrom) return false;
+    if(leadStatsDateTo && d > leadStatsDateTo) return false;
+    return true;
+  }).sort((a,b)=>b.assignedAt-a.assignedAt);
+
+  document.getElementById('personLeadsModalTitle').textContent = `Data của ${u.name}`;
+  const periodText = (leadStatsDateFrom||leadStatsDateTo)
+    ? `Từ ${leadStatsDateFrom?fmtDate(leadStatsDateFrom):'—'} đến ${leadStatsDateTo?fmtDate(leadStatsDateTo):'—'}`
+    : 'Toàn bộ thời gian';
+  document.getElementById('personLeadsModalSub').textContent = `${periodText} — ${leads.length} data`;
+
+  const table = document.getElementById('personLeadsModalTable');
+  if(leads.length===0){
+    table.innerHTML = '<tr><td class="empty-note">Không có data nào trong khoảng này.</td></tr>';
+  } else {
+    table.innerHTML = `<thead><tr><th>Ngày nhận</th><th>Nguồn</th><th>SĐT</th><th>Tên khách</th><th>Tình trạng</th></tr></thead><tbody>` +
+      leads.map(l=>`<tr>
+        <td data-label="Ngày nhận">${new Date(l.assignedAt).toLocaleString('vi-VN')}</td>
+        <td data-label="Nguồn">${leadSource(l)}</td>
+        <td data-label="SĐT">${leadPhone(l)}</td>
+        <td data-label="Tên khách">${l.customerName||'—'}</td>
+        <td data-label="Tình trạng">${l.status?`<span style="${leadStatusStyle(l.status)} padding:3px 8px; border-radius:6px; display:inline-block;">${l.status}</span>`:'—'}</td>
+      </tr>`).join('') + `</tbody>`;
+  }
+  document.getElementById('personLeadsModal').classList.add('show');
+}
+function closePersonLeadsModal(){ document.getElementById('personLeadsModal').classList.remove('show'); }
 function renderMgrLeads(){
   renderLeadStats();
   const scope=scopeBranchId();
