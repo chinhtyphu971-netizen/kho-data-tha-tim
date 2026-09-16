@@ -27,7 +27,7 @@
   .app { padding: max(20px, env(safe-area-inset-top)) 20px 20px; display: flex; flex-direction: column; gap: 16px; max-width: 1100px; width: 100%; margin: 0 auto; box-sizing: border-box; position: relative; z-index: 1; }
   /* ---- Trung Thu: lớp nền mờ trang trí (không ảnh hưởng thao tác) ---- */
   #trungThuBg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  #trungThuBg span { position: absolute; opacity: 0.10; filter: blur(0.5px); animation: ttFloat ease-in-out infinite; }
+  #trungThuBg span { position: absolute; opacity: 0.13; filter: blur(0.5px); animation: ttFloat ease-in-out infinite; }
   @keyframes ttFloat {
     0%   { transform: translate(0, 0) rotate(0deg); }
     50%  { transform: translate(var(--dx, 30px), var(--dy, -30px)) rotate(var(--rot, 12deg)); }
@@ -2956,15 +2956,15 @@ function initMidAutumnTheme() {
   const bg = document.getElementById('trungThuBg');
   if (bg) {
     let html = '';
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 12; i++) {
       const icon = icons[Math.floor(Math.random() * icons.length)];
-      const top = Math.random() * 92;
-      const left = Math.random() * 92;
-      const size = 40 + Math.random() * 50; // to hơn trước (40–90px)
+      const top = Math.random() * 88;
+      const left = Math.random() * 88;
+      const size = 80 + Math.random() * 70; // to hơn hẳn (80–150px) cho nổi bật, tràn năng lượng
       const delay = Math.random() * 6;
       const dur = 10 + Math.random() * 10; // 10–20s, mỗi cái 1 tốc độ khác nhau
-      const dx = (Math.random() * 160 - 80).toFixed(0) + 'px'; // trôi ngang ngẫu nhiên -80..80px
-      const dy = (Math.random() * 160 - 80).toFixed(0) + 'px'; // trôi dọc ngẫu nhiên -80..80px
+      const dx = (Math.random() * 180 - 90).toFixed(0) + 'px'; // trôi ngang ngẫu nhiên -90..90px
+      const dy = (Math.random() * 180 - 90).toFixed(0) + 'px'; // trôi dọc ngẫu nhiên -90..90px
       const rot = (Math.random() * 40 - 20).toFixed(0) + 'deg';
       html += `<span style="top:${top}%;left:${left}%;font-size:${size}px;animation-delay:${delay}s;animation-duration:${dur}s;--dx:${dx};--dy:${dy};--rot:${rot};">${icon}</span>`;
     }
