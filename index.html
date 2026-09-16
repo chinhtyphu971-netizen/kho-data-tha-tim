@@ -24,7 +24,20 @@
     color: #EAF0FF;
     min-height: 100vh;
   }
-  .app { padding: max(20px, env(safe-area-inset-top)) 20px 20px; display: flex; flex-direction: column; gap: 16px; max-width: 1100px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+  .app { padding: max(20px, env(safe-area-inset-top)) 20px 20px; display: flex; flex-direction: column; gap: 16px; max-width: 1100px; width: 100%; margin: 0 auto; box-sizing: border-box; position: relative; z-index: 1; }
+  /* ---- Trung Thu: lớp nền mờ trang trí (không ảnh hưởng thao tác) ---- */
+  #trungThuBg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  #trungThuBg span { position: absolute; opacity: 0.08; filter: blur(0.5px); animation: ttFloat 9s ease-in-out infinite; }
+  @keyframes ttFloat { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-14px) rotate(6deg); } }
+  .tt-banner {
+    display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+    background: linear-gradient(90deg, rgba(255,163,26,0.16), rgba(255,90,60,0.10));
+    border: 1px solid rgba(255,163,26,0.35);
+    color: #FFC978; font-size: 12.5px; font-weight: 600;
+    padding: 6px 14px; border-radius: 999px;
+    animation: ttFade 0.6s ease;
+  }
+  @keyframes ttFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   .topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand-mark { font-size: 28px; }
@@ -232,13 +245,15 @@
 </style>
 </head>
 <body>
+<div id="trungThuBg"></div>
 <div class="app" id="app">
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark">❤️</span>
+      <span class="brand-mark">🏮</span>
       <div>
         <div class="brand-title">Kho data thả tim</div>
         <div class="brand-sub">Ai bấm ❤️ trước, người đó nhận — data tự khóa ngay sau đó</div>
+        <div class="tt-banner" id="ttBanner"></div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
@@ -2128,7 +2143,7 @@ function renderPinsSection() {
     else groups.other.push(k);
   });
   const renderCol = (title, list) => `
-    <div style="flex:1;min-width:260px;background:#0D1526;border-radius:10px;padding:12px 14px;">
+    <div style="flex:1;min-width:220px;background:#0D1526;border-radius:10px;padding:12px 14px;">
       <div style="font-size:12.5px;color:#7C89A6;margin-bottom:8px;font-weight:600;">${title} (${list.length})</div>
       <div style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:4px;">
         ${list.length === 0 ? '<div class="empty small">Chưa có ai.</div>' : list.map((k, i) => `
@@ -2931,6 +2946,50 @@ document.addEventListener('paste', (e) => {
     }
   }
 });
+
+function initMidAutumnTheme() {
+  const icons = ['🏮', '🌕', '🐰', '🥮', '✨', '🎑'];
+  const bg = document.getElementById('trungThuBg');
+  if (bg) {
+    let html = '';
+    for (let i = 0; i < 16; i++) {
+      const icon = icons[Math.floor(Math.random() * icons.length)];
+      const top = Math.random() * 96;
+      const left = Math.random() * 96;
+      const size = 22 + Math.random() * 30;
+      const delay = Math.random() * 6;
+      const dur = 7 + Math.random() * 6;
+      html += `<span style="top:${top}%;left:${left}%;font-size:${size}px;animation-delay:${delay}s;animation-duration:${dur}s;">${icon}</span>`;
+    }
+    bg.innerHTML = html;
+  }
+
+  const slogans = [
+    '🏮 Trung Thu đoàn viên — data đầy khoang, đơn đầy tay!',
+    '🌕 Trăng tròn đầy, doanh số cũng đầy — chốt đơn lẹ tay nào!',
+    '🥮 Bánh Trung Thu ngọt, mà doanh số còn ngọt hơn!',
+    '🐰 Thỏ ngọc rước đèn, cả team rước đơn về nhà!',
+    '✨ Trung Thu an lành — đơn hàng rộn ràng cả tháng!',
+    '🎑 Đèn lồng thắp sáng phố, nhiệt huyết thắp sáng team mình!',
+    '🌕 Một mùa trăng tròn, trăm mùa chốt đơn thành công!',
+    '🏮 Trung Thu vui trọn vẹn, KPI cũng trọn vẹn nốt nha!'
+  ];
+  const banner = document.getElementById('ttBanner');
+  if (banner) {
+    let idx = -1;
+    const pick = () => {
+      let n; do { n = Math.floor(Math.random() * slogans.length); } while (n === idx && slogans.length > 1);
+      idx = n;
+      banner.style.animation = 'none';
+      void banner.offsetWidth;
+      banner.style.animation = '';
+      banner.textContent = slogans[idx];
+    };
+    pick();
+    setInterval(pick, 8000);
+  }
+}
+initMidAutumnTheme();
 
 renderApp();
 attachReadsSyncForCurrentUser();
