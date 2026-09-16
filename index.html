@@ -27,8 +27,12 @@
   .app { padding: max(20px, env(safe-area-inset-top)) 20px 20px; display: flex; flex-direction: column; gap: 16px; max-width: 1100px; width: 100%; margin: 0 auto; box-sizing: border-box; position: relative; z-index: 1; }
   /* ---- Trung Thu: lớp nền mờ trang trí (không ảnh hưởng thao tác) ---- */
   #trungThuBg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  #trungThuBg span { position: absolute; opacity: 0.08; filter: blur(0.5px); animation: ttFloat 9s ease-in-out infinite; }
-  @keyframes ttFloat { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-14px) rotate(6deg); } }
+  #trungThuBg span { position: absolute; opacity: 0.10; filter: blur(0.5px); animation: ttFloat ease-in-out infinite; }
+  @keyframes ttFloat {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    50%  { transform: translate(var(--dx, 30px), var(--dy, -30px)) rotate(var(--rot, 12deg)); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+  }
   .tt-banner {
     display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
     background: linear-gradient(90deg, rgba(255,163,26,0.16), rgba(255,90,60,0.10));
@@ -2948,18 +2952,21 @@ document.addEventListener('paste', (e) => {
 });
 
 function initMidAutumnTheme() {
-  const icons = ['🏮', '🌕', '🐰', '🥮', '✨', '🎑'];
+  const icons = ['🏮', '🌕', '🐰', '🥮', '✨', '🎑', '⭐'];
   const bg = document.getElementById('trungThuBg');
   if (bg) {
     let html = '';
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 14; i++) {
       const icon = icons[Math.floor(Math.random() * icons.length)];
-      const top = Math.random() * 96;
-      const left = Math.random() * 96;
-      const size = 22 + Math.random() * 30;
+      const top = Math.random() * 92;
+      const left = Math.random() * 92;
+      const size = 40 + Math.random() * 50; // to hơn trước (40–90px)
       const delay = Math.random() * 6;
-      const dur = 7 + Math.random() * 6;
-      html += `<span style="top:${top}%;left:${left}%;font-size:${size}px;animation-delay:${delay}s;animation-duration:${dur}s;">${icon}</span>`;
+      const dur = 10 + Math.random() * 10; // 10–20s, mỗi cái 1 tốc độ khác nhau
+      const dx = (Math.random() * 160 - 80).toFixed(0) + 'px'; // trôi ngang ngẫu nhiên -80..80px
+      const dy = (Math.random() * 160 - 80).toFixed(0) + 'px'; // trôi dọc ngẫu nhiên -80..80px
+      const rot = (Math.random() * 40 - 20).toFixed(0) + 'deg';
+      html += `<span style="top:${top}%;left:${left}%;font-size:${size}px;animation-delay:${delay}s;animation-duration:${dur}s;--dx:${dx};--dy:${dy};--rot:${rot};">${icon}</span>`;
     }
     bg.innerHTML = html;
   }
