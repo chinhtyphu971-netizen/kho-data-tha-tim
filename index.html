@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Kho data thả tim" />
 <meta name="mobile-web-app-capable" content="yes" />
-<meta name="theme-color" content="#1B0F12" />
+<meta name="theme-color" content="#0B1220" />
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta http-equiv="Pragma" content="no-cache" />
 <meta http-equiv="Expires" content="0" />
@@ -20,34 +20,11 @@
   html, body { margin: 0; padding: 0; overflow-x: hidden; width: 100%; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background:
-      radial-gradient(700px circle at 85% 5%, rgba(255,205,90,0.38), transparent 62%),
-      radial-gradient(650px circle at 8% 12%, rgba(255,110,50,0.26), transparent 60%),
-      radial-gradient(600px circle at 12% 96%, rgba(255,150,40,0.22), transparent 60%),
-      radial-gradient(600px circle at 92% 92%, rgba(210,40,30,0.24), transparent 60%),
-      linear-gradient(180deg, #1B0F12 0%, #2A1310 40%, #1E0D0F 75%, #120809 100%);
-    background-attachment: fixed;
+    background: #0B1220;
     color: #EAF0FF;
     min-height: 100vh;
   }
   .app { padding: max(20px, env(safe-area-inset-top)) 20px 20px; display: flex; flex-direction: column; gap: 16px; max-width: 1100px; width: 100%; margin: 0 auto; box-sizing: border-box; position: relative; z-index: 1; }
-  /* ---- Trung Thu: lớp nền mờ trang trí (không ảnh hưởng thao tác) ---- */
-  #trungThuBg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  #trungThuBg span { position: absolute; opacity: 0.13; filter: blur(0.5px); animation: ttFloat ease-in-out infinite; }
-  @keyframes ttFloat {
-    0%   { transform: translate(0, 0) rotate(0deg); }
-    50%  { transform: translate(var(--dx, 30px), var(--dy, -30px)) rotate(var(--rot, 12deg)); }
-    100% { transform: translate(0, 0) rotate(0deg); }
-  }
-  .tt-banner {
-    display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
-    background: linear-gradient(90deg, rgba(255,163,26,0.16), rgba(255,90,60,0.10));
-    border: 1px solid rgba(255,163,26,0.35);
-    color: #FFC978; font-size: 12.5px; font-weight: 600;
-    padding: 6px 14px; border-radius: 999px;
-    animation: ttFade 0.6s ease;
-  }
-  @keyframes ttFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   .topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand-mark { font-size: 28px; }
@@ -255,15 +232,13 @@
 </style>
 </head>
 <body>
-<div id="trungThuBg"></div>
 <div class="app" id="app">
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark">🏮</span>
+      <span class="brand-mark">❤️</span>
       <div>
         <div class="brand-title">Kho data thả tim</div>
         <div class="brand-sub">Ai bấm ❤️ trước, người đó nhận — data tự khóa ngay sau đó</div>
-        <div class="tt-banner" id="ttBanner"></div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
@@ -537,7 +512,14 @@ function formatDateTime(ts) {
   return `${datePart} ${timePart}`;
 }
 
-function resizeImage(dataUrl, maxDim, quality) {
+// WebP nhỏ hơn JPEG ~25–35% cùng chất lượng. Safari cũ không mã hoá được WebP nên tự lùi về JPEG.
+const IMG_MIME = (() => {
+  try { return document.createElement('canvas').toDataURL('image/webp').startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg'; }
+  catch (e) { return 'image/jpeg'; }
+})();
+
+// maxBytes (tuỳ chọn): tự giảm chất lượng dần cho tới khi ảnh nhỏ hơn mức này.
+function resizeImage(dataUrl, maxDim, quality, maxBytes) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -547,8 +529,17 @@ function resizeImage(dataUrl, maxDim, quality) {
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      let q = quality;
+      let out = canvas.toDataURL(IMG_MIME, q);
+      if (maxBytes) {
+        while (out.length * 0.75 > maxBytes && q > 0.3) {
+          q = Math.max(0.3, q - 0.1);
+          out = canvas.toDataURL(IMG_MIME, q);
+        }
+      }
+      resolve(out);
     };
     img.onerror = () => resolve(null);
     img.src = dataUrl;
@@ -566,7 +557,7 @@ function resizeAvatarSquare(dataUrl, size) {
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      resolve(canvas.toDataURL(IMG_MIME, 0.8));
     };
     img.onerror = () => resolve(null);
     img.src = dataUrl;
@@ -737,6 +728,104 @@ function showToast(msg, kind) {
   toastTimer = setTimeout(() => { t.className = 'toast'; }, 3200);
 }
 
+// ---------- Tự dọn ảnh cũ để tiết kiệm dung lượng Firebase ----------
+// Chỉ xoá phần ẢNH quá hạn; tên khách, SĐT, link Zalo, nội dung chữ trong chat đều giữ nguyên.
+const IMAGE_RETENTION_DAYS = 30; // đổi số này nếu muốn giữ ảnh lâu/ngắn hơn
+const CLEANUP_LAST_RUN_KEY = 'khoData_imgCleanupLastRun';
+const CLEANUP_EVERY_MS = 12 * 60 * 60 * 1000; // mỗi máy Quản trị chạy tối đa 12 giờ/lần
+
+async function runImageCleanup() {
+  if (!dbRef) return 0;
+  const cutoff = Date.now() - IMAGE_RETENTION_DAYS * 86400000;
+  let cleaned = 0;
+
+  // 1) Ảnh QR gửi quá hạn, tính từ ngày gửi (dùng transaction để không xoá nhầm nếu danh sách vừa đổi)
+  const items = (state.pool && state.pool.items) || [];
+  const stale = [];
+  items.forEach((it, idx) => {
+    if (it && it.qrImage && it.createdAt && it.createdAt < cutoff) stale.push({ id: it.id, idx });
+  });
+  for (const st of stale.slice(0, 25)) {
+    try {
+      await dbRef.child('items').child(String(st.idx)).transaction((cur) => {
+        if (cur === null) return cur;
+        if (cur.id === st.id && cur.qrImage) {
+          const next = { ...cur };
+          delete next.qrImage;
+          next.qrExpired = true;
+          return next;
+        }
+        return; // đã đổi / không còn khớp -> bỏ qua
+      }, undefined, false);
+      cleaned++;
+    } catch (e) {}
+  }
+
+  // 2) Ảnh trong chat nhóm quá hạn
+  if (groupChatRef) {
+    try {
+      const snap = await groupChatRef.once('value');
+      const updates = {};
+      let n = 0;
+      snap.forEach((child) => {
+        const m = child.val();
+        if (m && m.image && m.ts && m.ts < cutoff) {
+          updates[child.key + '/image'] = null;
+          updates[child.key + '/imgExpired'] = true;
+          n++;
+        }
+      });
+      if (n > 0) { await groupChatRef.update(updates); cleaned += n; }
+    } catch (e) {}
+  }
+
+  // 3) Ảnh trong chat riêng từng đơn, quá hạn tính theo giờ gửi của từng tin
+  if (chatsRef && chatMetaRef) {
+    let checkedMap = {};
+    try {
+      const cs = await firebase.database().ref('imgCleanMeta').once('value');
+      checkedMap = cs.val() || {};
+    } catch (e) {}
+    const weekAgo = Date.now() - 7 * 86400000;
+    const ids = Object.keys(chatMetaCache || {}).filter((id) => {
+      const m = chatMetaCache[id];
+      if (!m || !m.lastTs) return false;
+      const checkedAt = checkedMap[id];
+      if (!checkedAt) return true;                       // chưa từng kiểm tra
+      return checkedAt < weekAgo && m.lastTs > checkedAt; // có tin mới từ lần kiểm tra trước
+    });
+    for (const id of ids.slice(0, 15)) {
+      try {
+        const snap = await chatsRef.child(id).once('value');
+        const updates = {};
+        let n = 0;
+        snap.forEach((child) => {
+          const m = child.val();
+          if (m && m.image && m.ts && m.ts < cutoff) {
+            updates[child.key + '/image'] = null;
+            updates[child.key + '/imgExpired'] = true;
+            n++;
+          }
+        });
+        if (n > 0) { await chatsRef.child(id).update(updates); cleaned += n; }
+        await firebase.database().ref('imgCleanMeta').child(id).set(Date.now());
+      } catch (e) {}
+    }
+  }
+  return cleaned;
+}
+
+// Chỉ máy đang đăng nhập Quản trị mới dọn, tránh nhiều máy cùng làm một lúc.
+setInterval(async () => {
+  if (!dbRef || state.lockedRole !== 'admin' || state.role !== 'admin') return;
+  const last = Number(safeGet(CLEANUP_LAST_RUN_KEY)) || 0;
+  if (Date.now() - last < CLEANUP_EVERY_MS) return;
+  safeSet(CLEANUP_LAST_RUN_KEY, String(Date.now()));
+  const n = await runImageCleanup();
+  if (n > 0) showToast(`🧹 Đã dọn ${n} ảnh cũ quá ${IMAGE_RETENTION_DAYS} ngày`, 'ok');
+}, 60000);
+
+
 function decodeQrLink(dataUrl) {
   return new Promise((resolve) => {
     if (typeof jsQR === 'undefined') { resolve(null); return; }
@@ -766,7 +855,7 @@ async function handleImageFile(file) {
   if (!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
   reader.onload = async (e) => {
-    const resized = await resizeImage(e.target.result, 360, 0.55);
+    const resized = await resizeImage(e.target.result, 360, 0.55, 30000);
     state.pendingImage = resized;
     renderDropZone();
     const link = await decodeQrLink(e.target.result);
@@ -1524,7 +1613,7 @@ function stageChatImage(file) {
   if (!me) { showToast('Cần có tên để nhắn tin', 'warn'); return; }
   const reader = new FileReader();
   reader.onload = async (e) => {
-    const resized = await resizeImage(e.target.result, 640, 0.7);
+    const resized = await resizeImage(e.target.result, 640, 0.7, 70000);
     if (!resized) { showToast('Không đọc được ảnh, thử lại', 'warn'); return; }
     state.pendingChatImage = resized;
     renderChatModal();
@@ -1578,7 +1667,7 @@ function stageGroupChatImage(file) {
   if (!me) { showToast('Cần có tên để nhắn tin', 'warn'); return; }
   const reader = new FileReader();
   reader.onload = async (e) => {
-    const resized = await resizeImage(e.target.result, 640, 0.7);
+    const resized = await resizeImage(e.target.result, 640, 0.7, 70000);
     if (!resized) { showToast('Không đọc được ảnh, thử lại', 'warn'); return; }
     state.pendingGroupChatImage = resized;
     renderGroupChatModal();
@@ -1620,7 +1709,7 @@ function renderGroupChatModal() {
                   ${avatarHtml(m.sender, 24)}
                   <div class="chat-msg ${m.sender === me ? 'mine' : 'theirs'}">
                     <div class="who">${m.sender === me ? 'Bạn' : m.sender} · ${formatTime(m.ts)}</div>
-                    ${m.image ? `<img src="${m.image}" alt="Ảnh" data-zoom-group-msg="${mi}" style="max-width:180px;border-radius:8px;display:block;cursor:zoom-in;margin-top:2px;" />` : ''}
+                    ${m.image ? `<img src="${m.image}" alt="Ảnh" data-zoom-group-msg="${mi}" style="max-width:180px;border-radius:8px;display:block;cursor:zoom-in;margin-top:2px;" />` : (m.imgExpired ? '<div style="font-size:12px;opacity:0.65;margin-top:2px;">🖼️ Ảnh đã hết hạn</div>' : '')}
                     ${m.text ? `<div style="${m.image ? 'margin-top:6px;' : ''}">${m.text}</div>` : ''}
                   </div>
                 </div>
@@ -1691,7 +1780,7 @@ function renderChatModal() {
                   ${avatarHtml(m.sender, 24)}
                   <div class="chat-msg ${m.sender === me ? 'mine' : 'theirs'}">
                     <div class="who">${m.sender === me ? 'Bạn' : m.sender} · ${formatTime(m.ts)}</div>
-                    ${m.image ? `<img src="${m.image}" alt="Ảnh" data-zoom-chat-msg="${mi}" style="max-width:180px;border-radius:8px;display:block;cursor:zoom-in;margin-top:2px;" />` : ''}
+                    ${m.image ? `<img src="${m.image}" alt="Ảnh" data-zoom-chat-msg="${mi}" style="max-width:180px;border-radius:8px;display:block;cursor:zoom-in;margin-top:2px;" />` : (m.imgExpired ? '<div style="font-size:12px;opacity:0.65;margin-top:2px;">🖼️ Ảnh đã hết hạn</div>' : '')}
                     ${m.text ? `<div style="${m.image ? 'margin-top:6px;' : ''}">${m.text}</div>` : ''}
                   </div>
                 </div>
@@ -2246,8 +2335,8 @@ function renderDynamic() {
     if (statsBar) {
       const todayStart = new Date(); todayStart.setHours(0,0,0,0);
       const mineToday = mine.filter(it => it.createdAt >= todayStart.getTime()).length;
-      const mineWithQr = mine.filter(it => !!it.qrImage).length;
-      const mineQrToday = mine.filter(it => it.createdAt >= todayStart.getTime() && !!it.qrImage).length;
+      const mineWithQr = mine.filter(it => !!(it.qrImage || it.qrExpired)).length;
+      const mineQrToday = mine.filter(it => it.createdAt >= todayStart.getTime() && !!(it.qrImage || it.qrExpired)).length;
       statsBar.innerHTML = `
         <div class="mkt-stat"><div class="n">${mine.length}</div><div class="l">Tổng data đã gửi</div></div>
         <div class="mkt-stat"><div class="n">${mineToday}</div><div class="l">Gửi hôm nay</div></div>
@@ -2295,7 +2384,7 @@ function renderDynamic() {
         logList.innerHTML = `
           ${pageDayKeys.map(key => {
             const g = dayGroups[key];
-            const gQrCount = g.items.filter(it => !!it.qrImage).length;
+            const gQrCount = g.items.filter(it => !!(it.qrImage || it.qrExpired)).length;
             return `
               <div style="margin-bottom:14px;">
                 <div style="font-size:12.5px;font-weight:650;color:#7C89A6;margin-bottom:6px;">📅 ${g.label} (${g.items.length} data · 🖼️ ${gQrCount} có QR)</div>
@@ -2956,53 +3045,6 @@ document.addEventListener('paste', (e) => {
     }
   }
 });
-
-function initMidAutumnTheme() {
-  const icons = ['🏮', '🌕', '🐰', '🥮', '✨', '🎑', '⭐'];
-  const bg = document.getElementById('trungThuBg');
-  if (bg) {
-    let html = '';
-    for (let i = 0; i < 12; i++) {
-      const icon = icons[Math.floor(Math.random() * icons.length)];
-      const top = Math.random() * 88;
-      const left = Math.random() * 88;
-      const size = 80 + Math.random() * 70; // to hơn hẳn (80–150px) cho nổi bật, tràn năng lượng
-      const delay = Math.random() * 6;
-      const dur = 10 + Math.random() * 10; // 10–20s, mỗi cái 1 tốc độ khác nhau
-      const dx = (Math.random() * 180 - 90).toFixed(0) + 'px'; // trôi ngang ngẫu nhiên -90..90px
-      const dy = (Math.random() * 180 - 90).toFixed(0) + 'px'; // trôi dọc ngẫu nhiên -90..90px
-      const rot = (Math.random() * 40 - 20).toFixed(0) + 'deg';
-      html += `<span style="top:${top}%;left:${left}%;font-size:${size}px;animation-delay:${delay}s;animation-duration:${dur}s;--dx:${dx};--dy:${dy};--rot:${rot};">${icon}</span>`;
-    }
-    bg.innerHTML = html;
-  }
-
-  const slogans = [
-    '🏮 Trung Thu đoàn viên — data đầy khoang, đơn đầy tay!',
-    '🌕 Trăng tròn đầy, doanh số cũng đầy — chốt đơn lẹ tay nào!',
-    '🥮 Bánh Trung Thu ngọt, mà doanh số còn ngọt hơn!',
-    '🐰 Thỏ ngọc rước đèn, cả team rước đơn về nhà!',
-    '✨ Trung Thu an lành — đơn hàng rộn ràng cả tháng!',
-    '🎑 Đèn lồng thắp sáng phố, nhiệt huyết thắp sáng team mình!',
-    '🌕 Một mùa trăng tròn, trăm mùa chốt đơn thành công!',
-    '🏮 Trung Thu vui trọn vẹn, KPI cũng trọn vẹn nốt nha!'
-  ];
-  const banner = document.getElementById('ttBanner');
-  if (banner) {
-    let idx = -1;
-    const pick = () => {
-      let n; do { n = Math.floor(Math.random() * slogans.length); } while (n === idx && slogans.length > 1);
-      idx = n;
-      banner.style.animation = 'none';
-      void banner.offsetWidth;
-      banner.style.animation = '';
-      banner.textContent = slogans[idx];
-    };
-    pick();
-    setInterval(pick, 8000);
-  }
-}
-initMidAutumnTheme();
 
 renderApp();
 attachReadsSyncForCurrentUser();
