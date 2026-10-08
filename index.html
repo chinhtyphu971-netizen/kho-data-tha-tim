@@ -304,6 +304,7 @@ let groupChatRef = null;
 let chatMetaRef = null;
 let trashRef = null;
 let roleChangeLogRef = null;
+let qrImagesRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -318,6 +319,7 @@ if (FIREBASE_ENABLED) {
     chatMetaRef = firebase.database().ref('chatMeta');
     trashRef = firebase.database().ref('trash');
     roleChangeLogRef = firebase.database().ref('roleChangeLog');
+    qrImagesRef = firebase.database().ref('qrImages');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -396,11 +398,41 @@ function normalizePool(pool) {
 let rawPool = defaultPool();
 let allClaims = {};
 
+// Ảnh QR lưu ở nhánh riêng "qrImages" (không nằm trong "pool") để mỗi lần có người
+// nhận/thêm data thì không phải tải/ghi lại toàn bộ ảnh nữa.
+const qrKey = (id) => String(id).padStart(8, '0');
+let qrCache = {}; // id -> dataUrl thật
+const QR_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="8" fill="#1B2742"/><text x="32" y="40" font-size="22" text-anchor="middle" fill="#7C89A6" font-family="Arial">QR</text></svg>');
+let qrRecomputeTimer = null;
+function scheduleQrRecompute() {
+  if (qrRecomputeTimer) return;
+  qrRecomputeTimer = setTimeout(() => { qrRecomputeTimer = null; recomputeMergedPool(); }, 200);
+}
+async function fetchQrImage(id) {
+  if (qrCache[id]) return qrCache[id];
+  if (!qrImagesRef) return null;
+  try {
+    const snap = await qrImagesRef.child(qrKey(id)).once('value');
+    const v = snap.val();
+    if (v) { qrCache[id] = v; scheduleQrRecompute(); }
+    return v || null;
+  } catch (e) { return null; }
+}
+// Bỏ ảnh đã "gắn tạm" vào bộ nhớ trước khi ghi lên Firebase / localStorage.
+function stripQrHydration(pool) {
+  return { ...pool, items: (pool.items || []).map(it => {
+    if (it && it.hasQr && it.qrImage) { const c = { ...it }; delete c.qrImage; return c; }
+    return it;
+  }) };
+}
+
 function mergePoolWithClaims(pool, claims) {
   const items = (pool.items || []).map(it => {
+    let out = it;
     const c = claims[it.id];
-    if (c) return { ...it, claimedBy: c.claimedBy || null, claimedAt: c.claimedAt || null };
-    return it; // Data cũ (trước khi có nhánh "claims" riêng) — giữ nguyên claimedBy sẵn có.
+    if (c) out = { ...out, claimedBy: c.claimedBy || null, claimedAt: c.claimedAt || null };
+    if (it.hasQr && !it.qrImage) out = { ...out, qrImage: qrCache[it.id] || QR_PLACEHOLDER };
+    return out; // Data cũ (trước khi có nhánh "claims" riêng) — giữ nguyên claimedBy sẵn có.
   });
   return { nextId: pool.nextId, items };
 }
@@ -429,7 +461,7 @@ function loadLocalCache() {
   return defaultPool();
 }
 function saveLocalCache(pool) {
-  try { localStorage.setItem(LOCAL_POOL_CACHE_KEY, JSON.stringify(pool)); } catch (e) {}
+  try { localStorage.setItem(LOCAL_POOL_CACHE_KEY, JSON.stringify(stripQrHydration(pool))); } catch (e) {}
 }
 
 let remoteWarned = false;
@@ -458,7 +490,7 @@ async function savePool(pool) {
   saveLocalCache(pool);
   if (dbRef) {
     try {
-      await dbRef.set(pool);
+      await dbRef.set(stripQrHydration(pool));
       remoteWarned = false;
       return true;
     } catch (e) {
@@ -738,33 +770,62 @@ async function runImageCleanup() {
   if (!dbRef) return 0;
   const cutoff = Date.now() - IMAGE_RETENTION_DAYS * 86400000;
   let cleaned = 0;
+  let migrated = 0;
+  let moreToMigrate = false;
 
-  // 1) Ảnh QR gửi quá hạn, tính từ ngày gửi (dùng transaction để không xoá nhầm nếu danh sách vừa đổi)
+  // 1) Ảnh QR gửi quá hạn, tính từ ngày gửi
   const items = (state.pool && state.pool.items) || [];
   const stale = [];
   items.forEach((it, idx) => {
-    if (it && it.qrImage && it.createdAt && it.createdAt < cutoff) stale.push({ id: it.id, idx });
+    if (it && (it.hasQr || it.qrImage) && it.createdAt && it.createdAt < cutoff) stale.push({ id: it.id, idx, hasQr: !!it.hasQr });
   });
-  for (const st of stale.slice(0, 25)) {
+  for (const st of stale.slice(0, 40)) {
     try {
       await dbRef.child('items').child(String(st.idx)).transaction((cur) => {
         if (cur === null) return cur;
-        if (cur.id === st.id && cur.qrImage) {
+        if (cur.id === st.id && (cur.qrImage || cur.hasQr)) {
           const next = { ...cur };
-          delete next.qrImage;
+          delete next.qrImage; delete next.hasQr;
           next.qrExpired = true;
           return next;
         }
         return; // đã đổi / không còn khớp -> bỏ qua
       }, undefined, false);
+      if (st.hasQr && qrImagesRef) await qrImagesRef.child(qrKey(st.id)).remove();
+      delete qrCache[st.id];
       cleaned++;
     } catch (e) {}
+  }
+
+  // 1b) Chuyển ảnh QR cũ đang nằm trong "pool" sang nhánh riêng "qrImages" (làm 1 lần, tự dừng khi hết)
+  if (qrImagesRef) {
+    const legacy = [];
+    ((state.pool && state.pool.items) || []).forEach((it, idx) => {
+      if (it && it.qrImage && !it.hasQr) legacy.push({ id: it.id, idx, img: it.qrImage });
+    });
+    for (const lg of legacy.slice(0, 80)) {
+      try {
+        await qrImagesRef.child(qrKey(lg.id)).set(lg.img);
+        await dbRef.child('items').child(String(lg.idx)).transaction((cur) => {
+          if (cur === null) return cur;
+          if (cur.id === lg.id && cur.qrImage) {
+            const next = { ...cur };
+            delete next.qrImage; next.hasQr = true;
+            return next;
+          }
+          return;
+        }, undefined, false);
+        qrCache[lg.id] = lg.img;
+        migrated++;
+      } catch (e) {}
+    }
+    moreToMigrate = legacy.length > 80;
   }
 
   // 2) Ảnh trong chat nhóm quá hạn
   if (groupChatRef) {
     try {
-      const snap = await groupChatRef.once('value');
+      const snap = await groupChatRef.orderByKey().limitToFirst(300).once('value');
       const updates = {};
       let n = 0;
       snap.forEach((child) => {
@@ -812,7 +873,8 @@ async function runImageCleanup() {
       } catch (e) {}
     }
   }
-  return cleaned;
+  scheduleQrRecompute();
+  return { cleaned, migrated, moreToMigrate };
 }
 
 // Chỉ máy đang đăng nhập Quản trị mới dọn, tránh nhiều máy cùng làm một lúc.
@@ -821,8 +883,10 @@ setInterval(async () => {
   const last = Number(safeGet(CLEANUP_LAST_RUN_KEY)) || 0;
   if (Date.now() - last < CLEANUP_EVERY_MS) return;
   safeSet(CLEANUP_LAST_RUN_KEY, String(Date.now()));
-  const n = await runImageCleanup();
-  if (n > 0) showToast(`🧹 Đã dọn ${n} ảnh cũ quá ${IMAGE_RETENTION_DAYS} ngày`, 'ok');
+  const r = await runImageCleanup();
+  if (r.moreToMigrate) safeSet(CLEANUP_LAST_RUN_KEY, '0'); // còn ảnh cũ cần chuyển -> chạy tiếp lượt sau
+  if (r.cleaned > 0) showToast(`🧹 Đã dọn ${r.cleaned} ảnh cũ quá ${IMAGE_RETENTION_DAYS} ngày`, 'ok');
+  if (r.migrated > 0) showToast(`📦 Đã chuyển ${r.migrated} ảnh QR sang kho ảnh riêng`, 'ok');
 }, 60000);
 
 
@@ -923,16 +987,24 @@ async function addItem() {
         const id = typeof base.nextId === 'number' ? base.nextId : defaultPool().nextId;
         const item = {
           id, name: nameVal, note: noteVal, createdAt: Date.now(),
-          claimedBy: null, claimedAt: null, qrImage, sentBy, zaloLink,
+          claimedBy: null, claimedAt: null, hasQr: !!qrImage, sentBy, zaloLink,
         };
         return { nextId: id + 1, items: [item, ...base.items] };
       });
       const val = result && result.snapshot ? result.snapshot.val() : null;
       const pool = normalizePool(val);
-      state.pool = pool;
-      lastPoolSerialized = JSON.stringify(pool);
-      saveLocalCache(pool);
       newItem = pool.items[0];
+      if (qrImage && newItem && qrImagesRef) {
+        qrCache[newItem.id] = qrImage;
+        try { await qrImagesRef.child(qrKey(newItem.id)).set(qrImage); }
+        catch (e) { showToast('Data đã gửi nhưng ảnh QR chưa lưu được — thử gửi lại ảnh sau', 'warn'); }
+      }
+      rawPool = pool;
+      const mergedNow = mergePoolWithClaims(pool, allClaims);
+      state.pool = mergedNow;
+      lastPoolSerialized = JSON.stringify(mergedNow);
+      saveLocalCache(mergedNow);
+      newItem = mergedNow.items[0];
       remoteWarned = false;
     } catch (e) {
       saveOk = false;
@@ -1266,9 +1338,19 @@ if (chatMetaRef) {
   });
 }
 
+// Chỉ tự tải ảnh QR của 150 data mới nhất; data cũ hơn sẽ tải khi bấm vào xem.
+if (qrImagesRef) {
+  qrImagesRef.orderByKey().limitToLast(150).on('child_added', (snap) => {
+    const v = snap.val();
+    if (v) { qrCache[Number(snap.key)] = v; scheduleQrRecompute(); }
+  });
+}
+
 let groupChatPrimed = false;
 if (groupChatRef) {
-  groupChatRef.on('child_added', (snap) => {
+  // Chỉ tải 100 tin gần nhất thay vì toàn bộ lịch sử (kèm ảnh) mỗi lần mở app.
+  const groupChatRecent = groupChatRef.limitToLast(100);
+  groupChatRecent.on('child_added', (snap) => {
     const msg = snap.val();
     if (!msg) return;
     state.groupChatMessages.push(msg);
@@ -1292,7 +1374,7 @@ if (groupChatRef) {
   });
   // Dùng sự kiện 'value' 1 lần đầu (once) chỉ để biết khi nào đã tải xong lịch sử ban đầu,
   // không lặp lại tốn băng thông về sau.
-  groupChatRef.once('value', () => { groupChatPrimed = true; });
+  groupChatRecent.once('value', () => { groupChatPrimed = true; });
 }
 
 let allPins = {};
@@ -2834,6 +2916,10 @@ document.getElementById('app').addEventListener('click', async (e) => {
   const zoomImg = e.target.closest('[data-zoom-item]');
   if (zoomImg) {
     const item = findItemById(Number(zoomImg.dataset.zoomItem));
+    if (item && item.hasQr && !qrCache[item.id]) {
+      fetchQrImage(item.id).then(img => { if (img) openLightbox(img); else showToast('Không tải được ảnh QR', 'warn'); });
+      return;
+    }
     if (item && item.qrImage) openLightbox(item.qrImage);
     return;
   }
