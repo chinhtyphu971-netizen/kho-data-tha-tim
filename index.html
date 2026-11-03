@@ -305,6 +305,7 @@ let chatMetaRef = null;
 let trashRef = null;
 let roleChangeLogRef = null;
 let qrImagesRef = null;
+let settingsRef = null;
 if (FIREBASE_ENABLED) {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -320,6 +321,7 @@ if (FIREBASE_ENABLED) {
     trashRef = firebase.database().ref('trash');
     roleChangeLogRef = firebase.database().ref('roleChangeLog');
     qrImagesRef = firebase.database().ref('qrImages');
+    settingsRef = firebase.database().ref('settings');
   } catch (e) {
     console.error('Firebase init failed', e);
   }
@@ -698,6 +700,140 @@ function playBeep() {
   } catch (e) {}
 }
 
+// ---------- Nhạc chuông cho thông báo "có data mới" ----------
+// Chỉ Quản trị được tải lên/đổi/xoá. File lưu ở Firebase (settings/ringtoneData); các máy khác chỉ tải
+// khi có bản mới (so sánh settings/ringtoneMeta) rồi cất trong IndexedDB của máy nên không tải lại mỗi lần mở app.
+const RINGTONE_MAX_BYTES = 400 * 1024;     // ~400KB (mp3 128kbps khoảng 25 giây) để không tốn dung lượng kho
+const RINGTONE_MAX_PLAY_MS = 12000;        // chuông dài quá thì tự cắt sau 12 giây
+let customRingtone = null;                 // { url, name, updatedAt }
+let ringtoneAudio = null;
+let ringtoneStopTimer = null;
+
+function isAdminUser() { return state.lockedRole === 'admin'; }
+
+function ringtoneDbOpen() {
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open('khodata-ringtone', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+async function ringtoneDbOp(mode, fn) {
+  const db = await ringtoneDbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', mode);
+    const req = fn(tx.objectStore('kv'));
+    tx.oncomplete = () => resolve(req && req.result);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function loadCustomRingtone() {
+  try {
+    const saved = await ringtoneDbOp('readonly', st => st.get('ringtone'));
+    if (customRingtone) URL.revokeObjectURL(customRingtone.url);
+    customRingtone = (saved && saved.blob)
+      ? { url: URL.createObjectURL(saved.blob), name: saved.name || 'Nhạc chuông', updatedAt: saved.updatedAt || 0 }
+      : null;
+  } catch (e) { customRingtone = null; }
+}
+// Đồng bộ nhạc chuông từ Firebase: chỉ tải file khi bản trên kho khác bản đang có trong máy.
+function startRingtoneSync() {
+  if (!settingsRef) return;
+  settingsRef.child('ringtoneMeta').on('value', async (snap) => {
+    const meta = snap.val();
+    try {
+      if (!meta) {
+        await ringtoneDbOp('readwrite', st => st.delete('ringtone'));
+        await loadCustomRingtone();
+        return;
+      }
+      if (customRingtone && customRingtone.updatedAt === meta.updatedAt) return; // đã có bản này
+      const dsnap = await settingsRef.child('ringtoneData').once('value');
+      const dataUrl = dsnap.val();
+      if (!dataUrl) return;
+      const blob = await (await fetch(dataUrl)).blob();
+      await ringtoneDbOp('readwrite', st => st.put({ blob, name: meta.name, updatedAt: meta.updatedAt }, 'ringtone'));
+      await loadCustomRingtone();
+    } catch (e) {}
+  });
+}
+function playRingtone() {
+  if (!customRingtone) { playBeep(); return; }
+  try {
+    if (ringtoneAudio) ringtoneAudio.pause();
+    ringtoneAudio = new Audio(customRingtone.url);
+    ringtoneAudio.play().catch(() => playBeep());
+    clearTimeout(ringtoneStopTimer);
+    ringtoneStopTimer = setTimeout(() => { try { ringtoneAudio.pause(); } catch (e) {} }, RINGTONE_MAX_PLAY_MS);
+  } catch (e) { playBeep(); }
+}
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+function openRingtoneModal() {
+  if (!isAdminUser()) { showToast('Chỉ Quản trị mới được đổi nhạc chuông', 'warn'); return; }
+  let root = document.getElementById('ringtoneRoot');
+  if (!root) { root = document.createElement('div'); root.id = 'ringtoneRoot'; document.body.appendChild(root); }
+  const close = () => { root.innerHTML = ''; };
+  const draw = () => {
+    root.innerHTML = `
+      <div style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:120;display:flex;align-items:center;justify-content:center;padding:20px;" id="ringtoneOverlay">
+        <div style="background:#0F1A30;border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:20px;width:100%;max-width:380px;">
+          <div style="font-size:16px;font-weight:700;margin-bottom:6px;">🎵 Nhạc chuông data mới</div>
+          <div class="muted" style="font-size:12.5px;margin-bottom:14px;">
+            Đang dùng: <b style="color:#EAF0FF;">${customRingtone ? customRingtone.name.replace(/</g,'&lt;') : 'Mặc định (tiếng bíp)'}</b><br>
+            Áp dụng cho <b>tất cả</b> Sale khi có data mới. Chọn file mp3/m4a/wav tối đa 400KB (khoảng 25 giây mp3); chuông dài hơn 12 giây sẽ tự cắt.
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="btn primary" id="ringtonePickBtn">📁 Chọn file nhạc từ máy</button>
+            <button class="btn ghost" id="ringtoneTestBtn">▶️ Nghe thử</button>
+            ${customRingtone ? '<button class="btn ghost" id="ringtoneResetBtn">↩️ Về chuông mặc định</button>' : ''}
+            <button class="btn ghost" id="ringtoneCloseBtn">Đóng</button>
+          </div>
+          <input type="file" id="ringtoneFileInput" accept="audio/*" style="display:none;" />
+        </div>
+      </div>`;
+    root.querySelector('#ringtoneOverlay').addEventListener('click', (ev) => { if (ev.target.id === 'ringtoneOverlay') close(); });
+    root.querySelector('#ringtoneCloseBtn').addEventListener('click', close);
+    root.querySelector('#ringtoneTestBtn').addEventListener('click', playRingtone);
+    root.querySelector('#ringtonePickBtn').addEventListener('click', () => root.querySelector('#ringtoneFileInput').click());
+    const reset = root.querySelector('#ringtoneResetBtn');
+    if (reset) reset.addEventListener('click', async () => {
+      try {
+        if (settingsRef) await settingsRef.update({ ringtoneData: null, ringtoneMeta: null });
+        await ringtoneDbOp('readwrite', st => st.delete('ringtone'));
+        await loadCustomRingtone();
+        draw(); showToast('Đã về chuông mặc định cho cả đội', 'ok');
+      } catch (e) { showToast('Chưa xoá được, kiểm tra mạng rồi thử lại', 'warn'); }
+    });
+    root.querySelector('#ringtoneFileInput').addEventListener('change', async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('audio/')) { showToast('Vui lòng chọn file âm thanh (mp3, m4a, wav…)', 'warn'); return; }
+      if (file.size > RINGTONE_MAX_BYTES) { showToast('File quá nặng — chọn file dưới 400KB (cắt ngắn lại khoảng 25 giây)', 'warn'); return; }
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        const updatedAt = Date.now();
+        if (settingsRef) await settingsRef.update({ ringtoneData: dataUrl, ringtoneMeta: { name: file.name, updatedAt, size: file.size } });
+        await ringtoneDbOp('readwrite', st => st.put({ blob: file, name: file.name, updatedAt }, 'ringtone'));
+        await loadCustomRingtone();
+        draw();
+        playRingtone();
+        showToast('Đã đặt nhạc chuông cho cả đội: ' + file.name, 'ok');
+      } catch (e) { showToast('Chưa lưu được nhạc chuông, kiểm tra mạng rồi thử lại', 'warn'); }
+    });
+  };
+  draw();
+}
+loadCustomRingtone().then(startRingtoneSync);
+
+
 async function enableNotifications() {
   if (!('Notification' in window)) {
     showToast('Trình duyệt này không hỗ trợ thông báo', 'warn');
@@ -722,7 +858,7 @@ function disableNotifications() {
 
 function notifyNewItems(newItems) {
   if (!newItems.length) return;
-  playBeep();
+  playRingtone();
   if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
     const first = newItems[0];
     const body = newItems.length === 1
@@ -2064,6 +2200,7 @@ function renderShell() {
               <button class="btn ${state.notifyEnabled ? 'primary' : 'ghost'} small" id="notifyToggleBtn">
                 ${state.notifyEnabled ? '🔔 Đã bật thông báo' : '🔕 Bật thông báo data mới'}
               </button>
+              ${isAdminUser() ? '<button class="btn ghost small" id="ringtoneBtn" title="Cài nhạc chuông khi có data mới (chỉ Quản trị)">🎵 Nhạc chuông</button>' : ''}
               <span class="pill" id="saleNamePill"><span id="changeNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.saleName, 18)}</span> ${state.saleName}</span>
             </div>
           </div>
@@ -2113,6 +2250,7 @@ function renderShell() {
           <h2>Toàn bộ nhật ký</h2>
           <div style="display:flex;align-items:center;gap:10px;">
             <span class="pill" id="adminNamePill"><span id="changeAdminNameBtn" style="cursor:pointer;display:inline-flex;" title="Bấm vào ảnh để đổi tên">${avatarHtml(state.adminName, 18)}</span> ${state.adminName}</span>
+            <button class="btn ghost small" id="ringtoneBtn" title="Cài nhạc chuông khi có data mới cho cả đội">🎵 Nhạc chuông</button>
             <button class="btn ghost small" id="forceReloadAllBtn" title="Bắt tất cả máy đang mở app tự tải lại bản mới nhất">📢 Làm mới cho tất cả</button>
             <button class="btn ghost" id="resetBtn">↺ Xoá dữ liệu demo</button>
           </div>
@@ -2883,6 +3021,7 @@ document.getElementById('app').addEventListener('click', async (e) => {
     forgetAdminName();
     return;
   }
+  if (e.target.closest('#ringtoneBtn')) { openRingtoneModal(); return; }
   if (e.target.closest('#notifyToggleBtn')) {
     if (state.notifyEnabled) disableNotifications(); else enableNotifications();
     return;
