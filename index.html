@@ -704,7 +704,8 @@ function playBeep() {
 // Chỉ Quản trị được tải lên/đổi/xoá. File lưu ở Firebase (settings/ringtoneData); các máy khác chỉ tải
 // khi có bản mới (so sánh settings/ringtoneMeta) rồi cất trong IndexedDB của máy nên không tải lại mỗi lần mở app.
 const RINGTONE_MAX_BYTES = 400 * 1024;     // ~400KB (mp3 128kbps khoảng 25 giây) để không tốn dung lượng kho
-const RINGTONE_MAX_PLAY_MS = 12000;        // chuông dài quá thì tự cắt sau 12 giây
+const RINGTONE_DEFAULT_SEC = 15;           // độ dài chuông mặc định (Quản trị chỉnh được 3–30 giây)
+let ringtoneMaxSec = RINGTONE_DEFAULT_SEC;  // file dài hơn thì cắt, ngắn hơn thì tự lặp lại cho đủ độ dài
 let customRingtone = null;                 // { url, name, updatedAt }
 let ringtoneAudio = null;
 let ringtoneStopTimer = null;
@@ -758,16 +759,74 @@ function startRingtoneSync() {
     } catch (e) {}
   });
 }
+function startRingtoneConfigSync() {
+  if (!settingsRef) return;
+  settingsRef.child('ringtoneConfig').on('value', (snap) => {
+    const v = snap.val();
+    const n = v ? Number(v.maxSec) : RINGTONE_DEFAULT_SEC;
+    ringtoneMaxSec = (n >= 3 && n <= 30) ? n : RINGTONE_DEFAULT_SEC;
+  });
+}
 function playRingtone() {
   if (!customRingtone) { playBeep(); return; }
   try {
     if (ringtoneAudio) ringtoneAudio.pause();
     ringtoneAudio = new Audio(customRingtone.url);
+    ringtoneAudio.loop = true; // file ngắn hơn độ dài đã cài thì lặp lại cho đủ
     ringtoneAudio.play().catch(() => playBeep());
     clearTimeout(ringtoneStopTimer);
-    ringtoneStopTimer = setTimeout(() => { try { ringtoneAudio.pause(); } catch (e) {} }, RINGTONE_MAX_PLAY_MS);
+    ringtoneStopTimer = setTimeout(() => { try { ringtoneAudio.pause(); } catch (e) {} }, ringtoneMaxSec * 1000);
   } catch (e) { playBeep(); }
 }
+// ---------- Lời nói nhắc nhanh tay nhận data (đọc bằng giọng đọc của trình duyệt) ----------
+// Cả đoạn thông báo (chuông mở đầu + lời nói) dài khoảng 15 giây.
+const DEFAULT_VOICE_TEXT = 'Chú ý! Data mới vừa về kho! Ai nhanh tay, người đó có đơn! Bấm thả tim nhận ngay trong 15 giây, đừng chần chừ, đừng chờ đợi! Mỗi giây trôi qua là một cơ hội vuột mất! Nhìn kỹ thông tin khách, chọn nhanh, chốt dứt khoát, liên hệ ngay! Hết 15 giây, người khác sẽ lấy mất! Nhanh tay lên cả đội, nhận data, chốt đơn, về đích thật nhanh!';
+const DEFAULT_VOICE_RATE = 1.2;
+const VOICE_INTRO_MS = 2000; // chuông mở đầu 2 giây rồi mới đọc lời nói
+let voiceConfig = { enabled: true, text: DEFAULT_VOICE_TEXT, rate: DEFAULT_VOICE_RATE };
+
+// Ước tính thời lượng đọc (giây) — chỉ để gợi ý, thời lượng thật phụ thuộc giọng đọc của từng máy.
+function estimateSpeechSeconds(text, rate) {
+  const words = (text || '').trim().split(/\s+/).filter(Boolean).length;
+  const pauses = ((text || '').match(/[.!?,;]/g) || []).length;
+  return words / (4.5 * rate) + pauses * 0.12;
+}
+function speakLine(text, rate, onEnd) {
+  if (!('speechSynthesis' in window) || !text) { if (onEnd) onEnd(); return; }
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'vi-VN'; u.rate = rate || DEFAULT_VOICE_RATE; u.pitch = 1.1; u.volume = 1;
+    const v = (window.speechSynthesis.getVoices() || []).find(x => /^vi/i.test(x.lang));
+    if (v) u.voice = v;
+    if (onEnd) { u.onend = onEnd; u.onerror = onEnd; }
+    window.speechSynthesis.speak(u);
+  } catch (e) { if (onEnd) onEnd(); }
+}
+// Không có lời nói: chuông chạy tối đa 15 giây. Có lời nói: chuông mở đầu 2 giây rồi đọc lời nhắc.
+function announceNewData() {
+  const cfg = voiceConfig;
+  playRingtone();
+  if (!cfg.enabled) return;
+  let spoken = false;
+  const say = () => { if (spoken) return; spoken = true; speakLine(cfg.text || DEFAULT_VOICE_TEXT, cfg.rate); };
+  if (customRingtone && ringtoneAudio && !ringtoneAudio.paused) {
+    setTimeout(() => { try { ringtoneAudio.pause(); } catch (e) {} say(); }, Math.min(VOICE_INTRO_MS, ringtoneMaxSec * 1000));
+  } else {
+    setTimeout(say, 500);
+  }
+}
+function startVoiceSync() {
+  if (!settingsRef) return;
+  settingsRef.child('voiceLine').on('value', (snap) => {
+    const v = snap.val();
+    voiceConfig = v
+      ? { enabled: v.enabled !== false, text: (v.text || DEFAULT_VOICE_TEXT), rate: Number(v.rate) || DEFAULT_VOICE_RATE }
+      : { enabled: true, text: DEFAULT_VOICE_TEXT, rate: DEFAULT_VOICE_RATE };
+  });
+}
+if ('speechSynthesis' in window) { try { window.speechSynthesis.getVoices(); } catch (e) {} }
+
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -784,25 +843,93 @@ function openRingtoneModal() {
   const draw = () => {
     root.innerHTML = `
       <div style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:120;display:flex;align-items:center;justify-content:center;padding:20px;" id="ringtoneOverlay">
-        <div style="background:#0F1A30;border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:20px;width:100%;max-width:380px;">
+        <div style="background:#0F1A30;border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:20px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;">
           <div style="font-size:16px;font-weight:700;margin-bottom:6px;">🎵 Nhạc chuông data mới</div>
           <div class="muted" style="font-size:12.5px;margin-bottom:14px;">
             Đang dùng: <b style="color:#EAF0FF;">${customRingtone ? customRingtone.name.replace(/</g,'&lt;') : 'Mặc định (tiếng bíp)'}</b><br>
-            Áp dụng cho <b>tất cả</b> Sale khi có data mới. Chọn file mp3/m4a/wav tối đa 400KB (khoảng 25 giây mp3); chuông dài hơn 12 giây sẽ tự cắt.
+            Áp dụng cho <b>tất cả</b> Sale khi có data mới. Chọn file mp3/m4a/wav tối đa 400KB (khoảng 25 giây mp3). Độ dài chuông chỉnh ở thanh bên dưới: file dài hơn sẽ bị cắt, file ngắn hơn sẽ tự lặp lại cho đủ.
           </div>
           <div style="display:flex;flex-direction:column;gap:8px;">
             <button class="btn primary" id="ringtonePickBtn">📁 Chọn file nhạc từ máy</button>
             <button class="btn ghost" id="ringtoneTestBtn">▶️ Nghe thử</button>
+            <div style="background:#0B1426;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px;">
+              <div style="font-size:12.5px;margin-bottom:8px;">⏱️ Độ dài chuông: <b id="ringtoneLenLabel">${ringtoneMaxSec} giây</b></div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+                ${[5, 10, 15, 20, 30].map(sec => `<button class="btn ${ringtoneMaxSec === sec ? 'primary' : 'ghost'} small" data-ringtone-sec="${sec}">${sec} giây</button>`).join('')}
+              </div>
+              <input type="range" id="ringtoneLenInput" min="3" max="30" step="1" value="${ringtoneMaxSec}" style="width:100%;" />
+              <div class="muted" style="font-size:11.5px;margin-top:4px;">Bấm chọn nhanh hoặc kéo thanh để chỉnh số giây khác. Tự lưu cho cả đội.</div>
+            </div>
             ${customRingtone ? '<button class="btn ghost" id="ringtoneResetBtn">↩️ Về chuông mặc định</button>' : ''}
             <button class="btn ghost" id="ringtoneCloseBtn">Đóng</button>
           </div>
           <input type="file" id="ringtoneFileInput" accept="audio/*" style="display:none;" />
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
+            <div style="font-size:13.5px;font-weight:600;margin-bottom:6px;">🗣️ Lời nói khi có data mới (cả đoạn ~15 giây)</div>
+            <textarea id="voiceTextInput" class="input" maxlength="600" rows="6" style="width:100%;resize:vertical;box-sizing:border-box;">${(voiceConfig.text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+            <div style="display:flex;align-items:center;gap:8px;margin:8px 0 2px;font-size:12.5px;">
+              <span>Tốc độ</span>
+              <input type="range" id="voiceRateInput" min="1" max="1.6" step="0.05" value="${voiceConfig.rate}" style="flex:1;" />
+              <b id="voiceRateLabel">${Number(voiceConfig.rate).toFixed(2)}x</b>
+            </div>
+            <div class="muted" style="font-size:12px;margin-bottom:6px;">Ước tính: <b id="voiceEstimate" style="color:#FFC93C;"></b> — bấm Nghe thử để đo thời gian thật trên máy này, chỉnh tốc độ/chữ cho vừa 15 giây.</div>
+            <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin:8px 0;">
+              <input type="checkbox" id="voiceEnabledInput" ${voiceConfig.enabled ? 'checked' : ''} /> Đọc lời nói (chuông chỉ kêu 2 giây mở đầu rồi đọc)
+            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn ghost" id="voiceTestBtn">▶️ Nghe thử</button>
+              <button class="btn ghost" id="voiceDefaultBtn">↩️ Lời mẫu 15 giây</button>
+              <button class="btn primary" id="voiceSaveBtn">💾 Lưu cho cả đội</button>
+            </div>
+          </div>
         </div>
       </div>`;
     root.querySelector('#ringtoneOverlay').addEventListener('click', (ev) => { if (ev.target.id === 'ringtoneOverlay') close(); });
     root.querySelector('#ringtoneCloseBtn').addEventListener('click', close);
     root.querySelector('#ringtoneTestBtn').addEventListener('click', playRingtone);
     root.querySelector('#ringtonePickBtn').addEventListener('click', () => root.querySelector('#ringtoneFileInput').click());
+    const lenInput = root.querySelector('#ringtoneLenInput');
+    const saveLen = async (sec) => {
+      try {
+        if (settingsRef) await settingsRef.child('ringtoneConfig').set({ maxSec: sec, updatedAt: Date.now() });
+        ringtoneMaxSec = sec;
+        draw(); // vẽ lại để nút số giây đang chọn sáng lên
+        showToast('Đã đặt chuông dài ' + sec + ' giây cho cả đội', 'ok');
+      } catch (e) { showToast('Chưa lưu được, kiểm tra mạng rồi thử lại', 'warn'); }
+    };
+    root.querySelectorAll('[data-ringtone-sec]').forEach(btn => {
+      btn.addEventListener('click', () => saveLen(Number(btn.dataset.ringtoneSec)));
+    });
+    lenInput.addEventListener('input', () => { root.querySelector('#ringtoneLenLabel').textContent = lenInput.value + ' giây'; });
+    lenInput.addEventListener('change', () => saveLen(Number(lenInput.value)));
+    const vText = root.querySelector('#voiceTextInput');
+    const vRate = root.querySelector('#voiceRateInput');
+    const refreshEstimate = () => {
+      root.querySelector('#voiceRateLabel').textContent = Number(vRate.value).toFixed(2) + 'x';
+      root.querySelector('#voiceEstimate').textContent = '~' + Math.round(estimateSpeechSeconds(vText.value, Number(vRate.value))) + ' giây';
+    };
+    vText.addEventListener('input', refreshEstimate);
+    vRate.addEventListener('input', refreshEstimate);
+    refreshEstimate();
+    root.querySelector('#voiceTestBtn').addEventListener('click', () => {
+      const t0 = Date.now();
+      speakLine(vText.value.trim(), Number(vRate.value), () => {
+        showToast('Lời nói dài khoảng ' + ((Date.now() - t0) / 1000).toFixed(1) + ' giây trên máy này', 'ok');
+      });
+    });
+    root.querySelector('#voiceDefaultBtn').addEventListener('click', () => {
+      vText.value = DEFAULT_VOICE_TEXT; vRate.value = DEFAULT_VOICE_RATE; refreshEstimate();
+    });
+    root.querySelector('#voiceSaveBtn').addEventListener('click', async () => {
+      const text = vText.value.trim() || DEFAULT_VOICE_TEXT;
+      const rate = Number(vRate.value) || DEFAULT_VOICE_RATE;
+      const enabled = root.querySelector('#voiceEnabledInput').checked;
+      try {
+        if (settingsRef) await settingsRef.update({ voiceLine: { text, rate, enabled, updatedAt: Date.now() } });
+        voiceConfig = { enabled, text, rate };
+        showToast('Đã lưu lời nói cho cả đội', 'ok');
+      } catch (e) { showToast('Chưa lưu được, kiểm tra mạng rồi thử lại', 'warn'); }
+    });
     const reset = root.querySelector('#ringtoneResetBtn');
     if (reset) reset.addEventListener('click', async () => {
       try {
@@ -832,6 +959,8 @@ function openRingtoneModal() {
   draw();
 }
 loadCustomRingtone().then(startRingtoneSync);
+startRingtoneConfigSync();
+startVoiceSync();
 
 
 async function enableNotifications() {
@@ -858,7 +987,7 @@ function disableNotifications() {
 
 function notifyNewItems(newItems) {
   if (!newItems.length) return;
-  playRingtone();
+  announceNewData();
   if (state.notifyEnabled && 'Notification' in window && Notification.permission === 'granted') {
     const first = newItems[0];
     const body = newItems.length === 1
